@@ -1,7 +1,19 @@
 [package]
 edition = "2024"
-name = "seher"
+name = "sehercode"
 version = "0.1.0"
+authors = ["takumi3488"]
+description = "CLI tool to monitor Claude API rate limits and execute code after reset"
+license = "Apache-2.0"
+repository = "https://github.com/takumi3488/seher"
+
+[[bin]]
+name = "seher"
+path = "src/main.rs"
+
+[lib]
+name = "seher"
+path = "src/lib.rs"
 
 [dependencies]
 aes = "0.8"

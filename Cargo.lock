@@ -1787,7 +1787,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "seher"
+name = "sehercode"
 version = "0.1.0"
 dependencies = [
  "aes",
