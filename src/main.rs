@@ -1,5 +1,8 @@
+use chrono::{DateTime, Utc};
 use clap::Parser;
-use seher::{BrowserDetector, BrowserType, ClaudeClient, Cookie, CookieReader};
+use indicatif::{ProgressBar, ProgressStyle};
+use seher::{BrowserDetector, BrowserType, ClaudeClient, Cookie, CookieReader, UsageResponse};
+use std::time::Duration;
 
 #[derive(Parser)]
 #[command(name = "seher", about = "CLI tool for Claude.ai rate limit monitoring")]
@@ -27,6 +30,51 @@ fn parse_browser_type(name: &str) -> Option<BrowserType> {
         "safari" => Some(BrowserType::Safari),
         _ => None,
     }
+}
+
+async fn sleep_until_reset(reset_time: DateTime<Utc>) {
+    let now = Utc::now();
+    if reset_time <= now {
+        println!("\nReset time has already passed, no sleep needed.");
+        return;
+    }
+
+    let total_secs = (reset_time - now).num_seconds().max(0) as u64;
+    println!(
+        "\nSleeping until {} ({} seconds)...",
+        reset_time.format("%Y-%m-%d %H:%M:%S UTC"),
+        total_secs
+    );
+
+    let pb = ProgressBar::new(total_secs);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "⏳ [{bar:40.cyan/blue}] {elapsed} elapsed, {eta} remaining ({pos}/{len}s)",
+        )
+        .unwrap()
+        .progress_chars("█▉▊▋▌▍▎▏ "),
+    );
+
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    interval.tick().await; // first tick fires immediately
+    loop {
+        interval.tick().await;
+        let remaining = (reset_time - Utc::now()).num_seconds().max(0) as u64;
+        pb.set_position(total_secs - remaining);
+        if remaining == 0 {
+            break;
+        }
+    }
+    pb.finish_with_message("Done! Reset time reached.");
+}
+
+fn find_reset_time(usage: &UsageResponse) -> Option<DateTime<Utc>> {
+    [usage.five_hour.as_ref(), usage.seven_day.as_ref()]
+        .into_iter()
+        .flatten()
+        .filter(|w| w.utilization >= 100.0)
+        .map(|w| w.resets_at)
+        .max()
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -136,6 +184,11 @@ async fn main() {
                         "  7-day (Sonnet): utilization={:.1}%, resets_at={}",
                         w.utilization, w.resets_at
                     );
+                }
+
+                match find_reset_time(&usage) {
+                    Some(reset_time) => sleep_until_reset(reset_time).await,
+                    None => println!("\nUtilization is not at 100%, no sleep needed."),
                 }
                 return;
             }
