@@ -45,6 +45,25 @@ impl BrowserType {
     }
 }
 
+impl std::str::FromStr for BrowserType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "chrome" => Ok(BrowserType::Chrome),
+            "edge" => Ok(BrowserType::Edge),
+            "brave" => Ok(BrowserType::Brave),
+            "chromium" => Ok(BrowserType::Chromium),
+            "vivaldi" => Ok(BrowserType::Vivaldi),
+            "comet" => Ok(BrowserType::Comet),
+            "dia" => Ok(BrowserType::Dia),
+            "atlas" => Ok(BrowserType::Atlas),
+            "firefox" => Ok(BrowserType::Firefox),
+            "safari" => Ok(BrowserType::Safari),
+            other => Err(format!("Unknown browser: {}", other)),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Profile {
     pub name: String,
