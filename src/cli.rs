@@ -6,7 +6,11 @@ use std::str::FromStr;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "seher", about = "CLI tool for Claude.ai rate limit monitoring")]
+#[command(
+    name = "seher",
+    about = "CLI tool for Claude.ai rate limit monitoring",
+    disable_help_flag = true
+)]
 pub struct Args {
     /// Browser to use (chrome, edge, brave, firefox, safari, etc.)
     #[arg(long, short)]
@@ -15,6 +19,10 @@ pub struct Args {
     /// Browser profile name (e.g. "Profile 1", "default-release")
     #[arg(long, short)]
     pub profile: Option<String>,
+
+    /// Arguments to pass to claude (options and/or prompt)
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub claude_args: Vec<String>,
 }
 
 pub async fn run(args: Args) {
@@ -111,6 +119,24 @@ pub async fn run(args: Args) {
                     Some(reset_time) => sleep_until_reset(reset_time).await,
                     None => println!("\nUtilization is not at 100%, no sleep needed."),
                 }
+
+                // Launch Claude Code after waiting for rate limit reset
+                let mut final_args = args.claude_args;
+                if !has_prompt(&final_args) {
+                    match prompt_from_editor().await {
+                        Ok(prompt) if !prompt.is_empty() => final_args.push(prompt),
+                        Ok(_) => {}
+                        Err(e) => {
+                            eprintln!("Editor error: {}", e);
+                            return;
+                        }
+                    }
+                }
+
+                std::process::Command::new("claude")
+                    .args(&final_args)
+                    .status()
+                    .expect("claude command failed");
                 return;
             }
             Err(e) => {
@@ -120,6 +146,19 @@ pub async fn run(args: Args) {
     }
 
     eprintln!("All profiles failed to fetch usage data");
+}
+
+fn has_prompt(args: &[String]) -> bool {
+    args.iter().any(|a| !a.starts_with('-'))
+}
+
+async fn prompt_from_editor() -> std::result::Result<String, Box<dyn std::error::Error>> {
+    let tmp = tempfile::NamedTempFile::new()?;
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
+    std::process::Command::new(&editor)
+        .arg(tmp.path())
+        .status()?;
+    Ok(std::fs::read_to_string(tmp.path())?.trim().to_string())
 }
 
 fn display_usage(usage: &UsageResponse) {
