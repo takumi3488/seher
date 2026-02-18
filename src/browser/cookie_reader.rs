@@ -112,20 +112,23 @@ impl CookieReader {
                 same_site,
             ) = cookie_result?;
 
-            let value = crypto::decrypt_cookie_value(&encrypted_value)?;
-
-            let cookie = Cookie {
-                name,
-                value,
-                domain: host_key,
-                path,
-                expires_utc,
-                is_secure,
-                is_httponly,
-                same_site,
-            };
-
-            cookies.push(cookie);
+            match crypto::decrypt_cookie_value(&encrypted_value) {
+                Ok(value) => {
+                    cookies.push(Cookie {
+                        name,
+                        value,
+                        domain: host_key,
+                        path,
+                        expires_utc,
+                        is_secure,
+                        is_httponly,
+                        same_site,
+                    });
+                }
+                Err(e) => {
+                    eprintln!("  [warn] Failed to decrypt cookie '{}': {}", name, e);
+                }
+            }
         }
 
         if cookies.is_empty() {
