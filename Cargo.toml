@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "sehercode"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["takumi3488"]
 description = "CLI tool to monitor Claude API rate limits and execute code after reset"
 license = "Apache-2.0"
