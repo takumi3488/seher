@@ -1,10 +1,30 @@
 [package]
+edition = "2024"
 name = "seher"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
+aes = "0.8"
+aes-gcm = "0.10"
+base64 = "0.22"
+cbc = { version = "0.1", features = ["alloc"] }
+dirs = "6.0"
+pbkdf2 = { version = "0.12", features = ["simple"] }
+rusqlite = "0.32"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+thiserror = "2.0"
 tokio = { version = "1.49.0", features = ["rt", "macros"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service = "4.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_Security_Cryptography"] }
 
 [profile.release]
 codegen-units = 1
