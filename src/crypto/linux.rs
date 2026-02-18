@@ -38,7 +38,7 @@ fn get_encryption_key() -> Result<Vec<u8>> {
 }
 
 fn get_key_from_secret_service() -> Result<Vec<u8>> {
-    use secret_service::blocking::{Collection, SecretService};
+    use secret_service::blocking::SecretService;
 
     let service = SecretService::connect(secret_service::EncryptionType::Dh)
         .map_err(|e| CryptoError::SecretServiceError(format!("Failed to connect: {}", e)))?;
@@ -48,7 +48,7 @@ fn get_key_from_secret_service() -> Result<Vec<u8>> {
         .map_err(|e| CryptoError::SecretServiceError(format!("Failed to get collection: {}", e)))?;
 
     let items = collection
-        .search_items(vec![("application", "chrome")])
+        .search_items(std::collections::HashMap::from([("application", "chrome")]))
         .map_err(|e| CryptoError::SecretServiceError(format!("Failed to search items: {}", e)))?;
 
     if let Some(item) = items.first() {
