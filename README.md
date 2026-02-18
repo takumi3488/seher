@@ -45,7 +45,7 @@ cargo install sehercode # Note that it's not seher!
 
 
 ```sh
-# Default (runs in plan mode)
+# Default
 seher "fix bugs"
 # Launch vim to input a prompt
 seher
