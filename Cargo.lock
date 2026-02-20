@@ -1642,7 +1642,6 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
- "indicatif",
  "pbkdf2",
  "reqwest",
  "rusqlite",
@@ -1655,6 +1654,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "windows",
+ "zzsleep",
 ]
 
 [[package]]
@@ -2915,4 +2915,15 @@ dependencies = [
  "serde",
  "syn",
  "winnow",
+]
+
+[[package]]
+name = "zzsleep"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66bf99e9615846e644a31aa5372e9a0aaf95e3612a1f2bbfee6f262db7f43efc"
+dependencies = [
+ "chrono",
+ "indicatif",
+ "tokio",
 ]

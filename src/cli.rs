@@ -1,9 +1,8 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use clap::Parser;
-use indicatif::{ProgressBar, ProgressStyle};
 use seher::{BrowserDetector, BrowserType, ClaudeClient, CookieReader, UsageResponse};
 use std::str::FromStr;
-use std::time::Duration;
+use zzsleep::sleep_until_with_progress;
 
 #[derive(Parser)]
 #[command(
@@ -196,24 +195,6 @@ async fn sleep_until_reset(reset_time: DateTime<Utc>) {
         total_secs
     );
 
-    let pb = ProgressBar::new(total_secs);
-    pb.set_style(
-        ProgressStyle::with_template(
-            "⏳ [{bar:40.cyan/blue}] {elapsed} elapsed, {eta} remaining ({pos}/{len}s)",
-        )
-        .unwrap()
-        .progress_chars("█▉▊▋▌▍▎▏ "),
-    );
-
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-    interval.tick().await; // first tick fires immediately
-    loop {
-        interval.tick().await;
-        let remaining = (reset_time - Utc::now()).num_seconds().max(0) as u64;
-        pb.set_position(total_secs - remaining);
-        if remaining == 0 {
-            break;
-        }
-    }
-    pb.finish_with_message("Done! Reset time reached.");
+    let local_reset_time = reset_time.with_timezone(&Local);
+    sleep_until_with_progress(local_reset_time).await;
 }
