@@ -24,11 +24,11 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 dirs = "6.0"
 pbkdf2 = { version = "0.12", features = ["simple"] }
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls",
   "json",
 ] }
-rusqlite = "0.32"
+rusqlite = "0.38"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha1 = "0.10"
@@ -44,7 +44,7 @@ security-framework = "3.0"
 secret-service = { version = "5.0", features = ["rt-tokio-crypto-rust"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.58", features = ["Win32_Security_Cryptography"] }
+windows = { version = "0.62", features = ["Win32_Security_Cryptography"] }
 
 [profile.release]
 codegen-units = 1
