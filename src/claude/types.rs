@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct UsageWindow {
     pub utilization: f64,
-    pub resets_at: DateTime<Utc>,
+    pub resets_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,7 +20,7 @@ impl UsageResponse {
             .into_iter()
             .flatten()
             .filter(|w| w.utilization >= 100.0)
-            .map(|w| w.resets_at)
+            .filter_map(|w| w.resets_at)
             .max()
     }
 }
