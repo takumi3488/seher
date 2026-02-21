@@ -176,19 +176,28 @@ fn display_usage(usage: &UsageResponse) {
     if let Some(w) = &usage.five_hour {
         println!(
             "  5-hour:         utilization={:.1}%, resets_at={}",
-            w.utilization, w.resets_at
+            w.utilization,
+            w.resets_at
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "N/A".to_string())
         );
     }
     if let Some(w) = &usage.seven_day {
         println!(
             "  7-day:          utilization={:.1}%, resets_at={}",
-            w.utilization, w.resets_at
+            w.utilization,
+            w.resets_at
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "N/A".to_string())
         );
     }
     if let Some(w) = &usage.seven_day_sonnet {
         println!(
             "  7-day (Sonnet): utilization={:.1}%, resets_at={}",
-            w.utilization, w.resets_at
+            w.utilization,
+            w.resets_at
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "N/A".to_string())
         );
     }
 }
