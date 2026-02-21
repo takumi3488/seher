@@ -2,7 +2,7 @@ use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use seher::{BrowserDetector, BrowserType, ClaudeClient, CookieReader, UsageResponse};
 use std::str::FromStr;
-use zzsleep::sleep_until_with_progress;
+use zzsleep::sleep_until;
 
 #[derive(Parser)]
 #[command(
@@ -18,6 +18,10 @@ pub struct Args {
     /// Browser profile name (e.g. "Profile 1", "default-release")
     #[arg(long, short)]
     pub profile: Option<String>,
+
+    /// Suppress informational output (usage, sleep progress, etc.)
+    #[arg(long, short)]
+    pub quiet: bool,
 
     /// Arguments to pass to claude (options and/or prompt)
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -108,15 +112,23 @@ pub async fn run(args: Args) {
     }
 
     for (label, cookies) in &candidates {
-        println!("Trying {}...", label);
+        if !args.quiet {
+            println!("Trying {}...", label);
+        }
         match ClaudeClient::fetch_usage(cookies).await {
             Ok(usage) => {
-                println!("Usage (via {}):", label);
-                display_usage(&usage);
+                if !args.quiet {
+                    println!("Usage (via {}):", label);
+                    display_usage(&usage);
+                }
 
                 match usage.next_reset_time() {
-                    Some(reset_time) => sleep_until_reset(reset_time).await,
-                    None => println!("\nUtilization is not at 100%, no sleep needed."),
+                    Some(reset_time) => sleep_until_reset(reset_time, args.quiet).await,
+                    None => {
+                        if !args.quiet {
+                            println!("\nUtilization is not at 100%, no sleep needed.");
+                        }
+                    }
                 }
 
                 // Launch Claude Code after waiting for rate limit reset
@@ -181,20 +193,24 @@ fn display_usage(usage: &UsageResponse) {
     }
 }
 
-async fn sleep_until_reset(reset_time: DateTime<Utc>) {
+async fn sleep_until_reset(reset_time: DateTime<Utc>, quiet: bool) {
     let now = Utc::now();
     if reset_time <= now {
-        println!("\nReset time has already passed, no sleep needed.");
+        if !quiet {
+            println!("\nReset time has already passed, no sleep needed.");
+        }
         return;
     }
 
     let total_secs = (reset_time - now).num_seconds().max(0) as u64;
-    println!(
-        "\nSleeping until {} ({} seconds)...",
-        reset_time.format("%Y-%m-%d %H:%M:%S UTC"),
-        total_secs
-    );
+    if !quiet {
+        println!(
+            "\nSleeping until {} ({} seconds)...",
+            reset_time.format("%Y-%m-%d %H:%M:%S UTC"),
+            total_secs
+        );
+    }
 
     let local_reset_time = reset_time.with_timezone(&Local);
-    sleep_until_with_progress(local_reset_time).await;
+    sleep_until(local_reset_time, quiet).await;
 }

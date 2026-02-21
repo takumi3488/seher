@@ -35,7 +35,7 @@ sha1 = "0.10"
 tempfile = "3"
 thiserror = "2.0"
 tokio = { version = "1.49.0", features = ["rt", "macros", "time"] }
-zzsleep = "0.0.2"
+zzsleep = "0.0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3.0"

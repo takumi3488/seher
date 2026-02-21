@@ -2919,9 +2919,9 @@ dependencies = [
 
 [[package]]
 name = "zzsleep"
-version = "0.0.2"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66bf99e9615846e644a31aa5372e9a0aaf95e3612a1f2bbfee6f262db7f43efc"
+checksum = "f179e3c035583d1a5bd97d14f757795e57a4b170241550ef16c228d3eca7c5f8"
 dependencies = [
  "chrono",
  "indicatif",
