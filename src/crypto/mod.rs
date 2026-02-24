@@ -38,16 +38,36 @@ pub fn decrypt_cookie_value(encrypted_value: &[u8]) -> Result<String> {
     }
 
     #[cfg(target_os = "macos")]
-    return macos::decrypt(encrypted_value);
+    let value = macos::decrypt(encrypted_value)?;
 
     #[cfg(target_os = "linux")]
-    return linux::decrypt(encrypted_value);
+    let value = linux::decrypt(encrypted_value)?;
 
     #[cfg(target_os = "windows")]
-    return windows::decrypt(encrypted_value);
+    let value = windows::decrypt(encrypted_value)?;
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     return Err(CryptoError::UnsupportedVersion(
         "Unsupported OS".to_string(),
     ));
+
+    Ok(strip_chrome_value_prefix(&value))
+}
+
+/// Strip Chrome's cookie value format prefix (Chrome 130+).
+///
+/// Chrome stores cookie values with a prefix indicating the format:
+/// - `[digit]t` prefix: plaintext value (e.g. "0tyes" → "yes")
+/// - `[digit]e`` prefix: encoded value (e.g. "1e`token" → "token")
+fn strip_chrome_value_prefix(value: &str) -> String {
+    let bytes = value.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_digit() {
+        if bytes[1] == b't' {
+            return value[2..].to_string();
+        }
+        if bytes[1] == b'e' && bytes.len() >= 3 && bytes[2] == b'`' {
+            return value[3..].to_string();
+        }
+    }
+    value.to_string()
 }

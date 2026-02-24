@@ -1,13 +1,13 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
-use seher::{BrowserDetector, BrowserType, ClaudeClient, CookieReader, UsageResponse};
+use seher::{Agent, AgentLimit, BrowserDetector, BrowserType, CookieReader, Settings};
 use std::str::FromStr;
 use zzsleep::sleep_until;
 
 #[derive(Parser)]
 #[command(
     name = "seher",
-    about = "CLI tool for Claude.ai rate limit monitoring",
+    about = "CLI tool for Claude.ai and Copilot rate limit monitoring",
     disable_help_flag = true
 )]
 pub struct Args {
@@ -23,12 +23,20 @@ pub struct Args {
     #[arg(long, short)]
     pub quiet: bool,
 
-    /// Arguments to pass to claude (options and/or prompt)
+    /// Additional arguments to pass to the agent command
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub claude_args: Vec<String>,
+    pub agent_args: Vec<String>,
 }
 
 pub async fn run(args: Args) {
+    let settings = match Settings::load() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to load settings: {}", e);
+            return;
+        }
+    };
+
     let detector = BrowserDetector::new();
     let browsers = detector.detect_browsers();
 
@@ -37,130 +45,187 @@ pub async fn run(args: Args) {
         return;
     }
 
-    // Build list of (label, cookies) pairs to try
-    let mut candidates: Vec<(String, Vec<seher::Cookie>)> = Vec::new();
+    let mut agents: Vec<Agent> = Vec::new();
 
-    if let Some(ref browser_name) = args.browser {
-        // Specific browser requested
-        let browser_type = match BrowserType::from_str(browser_name) {
-            Ok(bt) => bt,
-            Err(e) => {
-                eprintln!("{}", e);
-                return;
+    for config in &settings.agents {
+        let domain = match get_domain_for_command(&config.command) {
+            Some(d) => d,
+            None => {
+                eprintln!(
+                    "Warning: unrecognized command '{}', skipping",
+                    config.command
+                );
+                continue;
             }
         };
 
-        if !browsers.contains(&browser_type) {
-            eprintln!("{} is not installed", browser_name);
-            return;
-        }
-
-        if let Some(ref profile_name) = args.profile {
-            // Specific profile
-            let prof = detector.get_profile(browser_type, Some(profile_name));
-            match prof {
-                Some(p) => match CookieReader::read_cookies(&p, "claude.ai") {
-                    Ok(cookies) => {
-                        let label = format!("{} - {}", browser_type.name(), p.name);
-                        candidates.push((label, cookies));
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to read cookies: {}", e);
-                        return;
-                    }
-                },
-                None => {
+        let cookies = match get_cookies_for_domain(
+            &detector,
+            &browsers,
+            &args.browser,
+            &args.profile,
+            domain,
+        ) {
+            Some(c) => c,
+            None => {
+                if !args.quiet {
                     eprintln!(
-                        "Profile '{}' not found for {}",
-                        profile_name,
-                        browser_type.name()
+                        "No cookies found for {} (domain: {})",
+                        config.command, domain
                     );
-                    return;
                 }
-            }
-        } else {
-            // All profiles of specified browser
-            for prof in detector.list_profiles(browser_type) {
-                if let Ok(cookies) = CookieReader::read_cookies(&prof, "claude.ai")
-                    && cookies.iter().any(|c| c.name == "sessionKey")
-                {
-                    let label = format!("{} - {}", browser_type.name(), prof.name);
-                    candidates.push((label, cookies));
-                }
-            }
-        }
-    } else {
-        // Auto-detect: scan all Chromium browsers
-        for browser in &browsers {
-            if !browser.is_chromium_based() {
                 continue;
             }
-            for prof in detector.list_profiles(*browser) {
-                if let Ok(cookies) = CookieReader::read_cookies(&prof, "claude.ai")
-                    && cookies.iter().any(|c| c.name == "sessionKey")
-                {
-                    let label = format!("{} - {}", browser.name(), prof.name);
-                    candidates.push((label, cookies));
-                }
-            }
-        }
+        };
+
+        agents.push(Agent::new(config.clone(), cookies, domain.to_string()));
     }
 
-    if candidates.is_empty() {
-        eprintln!("No claude.ai session cookies found");
+    if agents.is_empty() {
+        eprintln!("No agents with valid cookies found");
         return;
     }
 
-    for (label, cookies) in &candidates {
+    type LimitResult = (usize, Result<seher::AgentLimit, Box<dyn std::error::Error>>);
+    let mut limit_results: Vec<LimitResult> = Vec::new();
+
+    for (i, agent) in agents.iter().enumerate() {
         if !args.quiet {
-            println!("Trying {}...", label);
+            println!(
+                "Checking limit for {} {}...",
+                agent.command(),
+                agent.args().join(" ")
+            );
         }
-        match ClaudeClient::fetch_usage(cookies).await {
-            Ok(usage) => {
-                if !args.quiet {
-                    println!("Usage (via {}):", label);
-                    display_usage(&usage);
-                }
 
-                match usage.next_reset_time() {
-                    Some(reset_time) => sleep_until_reset(reset_time, args.quiet).await,
-                    None => {
-                        if !args.quiet {
-                            println!("\nUtilization is not at 100%, no sleep needed.");
-                        }
-                    }
-                }
+        let result = agent.check_limit().await;
+        limit_results.push((i, result));
+    }
 
-                // Launch Claude Code after waiting for rate limit reset
-                let mut final_args = args.claude_args;
-                if !has_prompt(&final_args) {
-                    match prompt_from_editor().await {
-                        Ok(prompt) if !prompt.is_empty() => final_args.push(prompt),
-                        Ok(_) => {}
-                        Err(e) => {
-                            eprintln!("Editor error: {}", e);
-                            return;
-                        }
-                    }
-                }
+    let mut available_indices: Vec<usize> = Vec::new();
+    let mut limited_indices: Vec<(usize, Option<DateTime<Utc>>)> = Vec::new();
 
-                std::process::Command::new("claude")
-                    .args(&final_args)
-                    .status()
-                    .expect("claude command failed");
-                return;
+    for (i, result) in &limit_results {
+        match result {
+            Ok(AgentLimit::NotLimited) => {
+                available_indices.push(*i);
+            }
+            Ok(AgentLimit::Limited { reset_time }) => {
+                limited_indices.push((*i, *reset_time));
             }
             Err(e) => {
-                eprintln!("  Failed: {}", e);
+                if !args.quiet {
+                    eprintln!("Failed to check limit for agent {}: {}", i, e);
+                }
             }
         }
     }
 
-    eprintln!("All profiles failed to fetch usage data");
+    if !available_indices.is_empty() {
+        let selected_index = available_indices[0];
+        if !args.quiet {
+            println!(
+                "Agent {} is available (not limited)",
+                agents[selected_index].command()
+            );
+        }
+        execute_agent(&agents, selected_index, args.agent_args, args.quiet).await;
+        return;
+    }
+
+    if !limited_indices.is_empty() {
+        let mut earliest: Option<(usize, DateTime<Utc>)> = None;
+        for (i, reset_time) in &limited_indices {
+            if let Some(rt) = reset_time
+                && (earliest.is_none() || *rt < earliest.unwrap().1)
+            {
+                earliest = Some((*i, *rt));
+            }
+        }
+
+        if let Some((idx, rt)) = earliest {
+            if !args.quiet {
+                println!(
+                    "All agents limited. Waiting for {} ({} seconds)...",
+                    rt.format("%Y-%m-%d %H:%M:%S UTC"),
+                    (rt - Utc::now()).num_seconds()
+                );
+            }
+            sleep_until_reset(rt, args.quiet).await;
+            execute_agent(&agents, idx, args.agent_args, args.quiet).await;
+            return;
+        } else if !args.quiet {
+            println!("All agents limited, no reset time available");
+        }
+    }
+
+    eprintln!("No available agents");
 }
 
-fn has_prompt(args: &[String]) -> bool {
-    args.iter().any(|a| !a.starts_with('-'))
+fn get_domain_for_command(command: &str) -> Option<&str> {
+    match command {
+        "claude" => Some("claude.ai"),
+        "copilot" => Some("github.com"),
+        _ => None,
+    }
+}
+
+fn get_cookies_for_domain(
+    detector: &BrowserDetector,
+    browsers: &[BrowserType],
+    browser_arg: &Option<String>,
+    profile_arg: &Option<String>,
+    domain: &str,
+) -> Option<Vec<seher::Cookie>> {
+    if let Some(browser_name) = browser_arg {
+        let browser_type = BrowserType::from_str(browser_name).ok()?;
+        if !browsers.contains(&browser_type) {
+            return None;
+        }
+
+        if let Some(profile_name) = profile_arg {
+            let prof = detector.get_profile(browser_type, Some(profile_name))?;
+            let cookies = CookieReader::read_cookies(&prof, domain).ok()?;
+            if cookies.iter().any(|c| has_session_cookie(domain, c)) {
+                return Some(cookies);
+            }
+            return None;
+        }
+
+        for prof in detector.list_profiles(browser_type) {
+            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain)
+                && cookies.iter().any(|c| has_session_cookie(domain, c))
+            {
+                return Some(cookies);
+            }
+        }
+        return None;
+    }
+
+    for browser in browsers {
+        if !browser.is_chromium_based() {
+            continue;
+        }
+        for prof in detector.list_profiles(*browser) {
+            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain)
+                && cookies.iter().any(|c| has_session_cookie(domain, c))
+            {
+                return Some(cookies);
+            }
+        }
+    }
+
+    None
+}
+
+fn has_session_cookie(domain: &str, cookie: &seher::Cookie) -> bool {
+    match domain {
+        "claude.ai" => cookie.name == "sessionKey",
+        "github.com" => {
+            cookie.name == "user_session" || cookie.name == "__Host-user_session_same_site"
+        }
+        _ => false,
+    }
 }
 
 async fn prompt_from_editor() -> std::result::Result<String, Box<dyn std::error::Error>> {
@@ -172,33 +237,42 @@ async fn prompt_from_editor() -> std::result::Result<String, Box<dyn std::error:
     Ok(std::fs::read_to_string(tmp.path())?.trim().to_string())
 }
 
-fn display_usage(usage: &UsageResponse) {
-    if let Some(w) = &usage.five_hour {
+async fn execute_agent(
+    agents: &[Agent],
+    selected_index: usize,
+    agent_args: Vec<String>,
+    quiet: bool,
+) {
+    let selected_agent = &agents[selected_index];
+    let mut final_args = agent_args.clone();
+
+    if final_args.is_empty() && !quiet {
+        match prompt_from_editor().await {
+            Ok(prompt) if !prompt.is_empty() => final_args.push(prompt),
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Editor error: {}", e);
+                return;
+            }
+        }
+    }
+
+    if !quiet {
         println!(
-            "  5-hour:         utilization={:.1}%, resets_at={}",
-            w.utilization,
-            w.resets_at
-                .map(|t| t.to_string())
-                .unwrap_or_else(|| "N/A".to_string())
+            "Executing: {} {}",
+            selected_agent.command(),
+            selected_agent
+                .args()
+                .iter()
+                .chain(final_args.iter())
+                .map(|s: &String| s.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
         );
     }
-    if let Some(w) = &usage.seven_day {
-        println!(
-            "  7-day:          utilization={:.1}%, resets_at={}",
-            w.utilization,
-            w.resets_at
-                .map(|t| t.to_string())
-                .unwrap_or_else(|| "N/A".to_string())
-        );
-    }
-    if let Some(w) = &usage.seven_day_sonnet {
-        println!(
-            "  7-day (Sonnet): utilization={:.1}%, resets_at={}",
-            w.utilization,
-            w.resets_at
-                .map(|t| t.to_string())
-                .unwrap_or_else(|| "N/A".to_string())
-        );
+
+    if let Err(e) = selected_agent.execute(&final_args) {
+        eprintln!("Failed to execute agent: {}", e);
     }
 }
 
