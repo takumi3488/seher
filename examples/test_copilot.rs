@@ -40,12 +40,12 @@ async fn main() {
                             println!("  premium_utilization: {:.1}%", quota.premium_utilization);
                             println!("  reset_time: {:?}", quota.reset_time);
                             println!("  is_limited: {}", quota.is_limited());
+                            return;
                         }
                         Err(e) => {
                             println!("\nFailed to fetch Copilot quota: {}", e);
                         }
                     }
-                    return;
                 }
                 Err(_) => {}
             }

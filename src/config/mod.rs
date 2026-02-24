@@ -9,6 +9,7 @@ pub struct Settings {
 #[derive(Debug, Deserialize, Clone)]
 pub struct AgentConfig {
     pub command: String,
+    #[serde(default)]
     pub args: Vec<String>,
 }
 

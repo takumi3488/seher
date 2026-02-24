@@ -73,10 +73,10 @@ impl Agent {
         }
     }
 
-    pub fn execute(&self, extra_args: Vec<String>) -> std::process::ExitStatus {
+    pub fn execute(&self, extra_args: &[String]) -> std::io::Result<std::process::ExitStatus> {
         let mut cmd = std::process::Command::new(self.command());
         cmd.args(self.args());
         cmd.args(extra_args);
-        cmd.status().expect("command failed")
+        cmd.status()
     }
 }

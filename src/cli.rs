@@ -48,7 +48,16 @@ pub async fn run(args: Args) {
     let mut agents: Vec<Agent> = Vec::new();
 
     for config in &settings.agents {
-        let domain = get_domain_for_command(&config.command);
+        let domain = match get_domain_for_command(&config.command) {
+            Some(d) => d,
+            None => {
+                eprintln!(
+                    "Warning: unrecognized command '{}', skipping",
+                    config.command
+                );
+                continue;
+            }
+        };
 
         let cookies = match get_cookies_for_domain(
             &detector,
@@ -153,11 +162,11 @@ pub async fn run(args: Args) {
     eprintln!("No available agents");
 }
 
-fn get_domain_for_command(command: &str) -> &str {
+fn get_domain_for_command(command: &str) -> Option<&str> {
     match command {
-        "claude" => "claude.ai",
-        "copilot" => "github.com",
-        _ => "claude.ai",
+        "claude" => Some("claude.ai"),
+        "copilot" => Some("github.com"),
+        _ => None,
     }
 }
 
@@ -262,7 +271,9 @@ async fn execute_agent(
         );
     }
 
-    selected_agent.execute(final_args);
+    if let Err(e) = selected_agent.execute(&final_args) {
+        eprintln!("Failed to execute agent: {}", e);
+    }
 }
 
 async fn sleep_until_reset(reset_time: DateTime<Utc>, quiet: bool) {
