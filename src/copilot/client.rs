@@ -77,10 +77,7 @@ impl CopilotClient {
         let reset_time = NaiveDate::parse_from_str(&quotas.reset_date, "%Y-%m-%d")
             .ok()
             .and_then(|d| d.and_hms_opt(0, 0, 0))
-            .map(|dt| {
-                let reset_utc = dt.and_utc();
-                reset_utc
-            });
+            .map(|dt| dt.and_utc());
 
         let chat_utilization = 100.0 - quotas.remaining.chat_percentage;
         let premium_utilization = 100.0 - quotas.remaining.premium_interactions_percentage;

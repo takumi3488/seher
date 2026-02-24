@@ -86,8 +86,8 @@ pub async fn run(args: Args) {
         return;
     }
 
-    let mut limit_results: Vec<(usize, Result<seher::AgentLimit, Box<dyn std::error::Error>>)> =
-        Vec::new();
+    type LimitResult = (usize, Result<seher::AgentLimit, Box<dyn std::error::Error>>);
+    let mut limit_results: Vec<LimitResult> = Vec::new();
 
     for (i, agent) in agents.iter().enumerate() {
         if !args.quiet {
@@ -136,10 +136,10 @@ pub async fn run(args: Args) {
     if !limited_indices.is_empty() {
         let mut earliest: Option<(usize, DateTime<Utc>)> = None;
         for (i, reset_time) in &limited_indices {
-            if let Some(rt) = reset_time {
-                if earliest.is_none() || *rt < earliest.unwrap().1 {
-                    earliest = Some((*i, *rt));
-                }
+            if let Some(rt) = reset_time
+                && (earliest.is_none() || *rt < earliest.unwrap().1)
+            {
+                earliest = Some((*i, *rt));
             }
         }
 
@@ -193,10 +193,10 @@ fn get_cookies_for_domain(
         }
 
         for prof in detector.list_profiles(browser_type) {
-            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain) {
-                if cookies.iter().any(|c| has_session_cookie(domain, c)) {
-                    return Some(cookies);
-                }
+            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain)
+                && cookies.iter().any(|c| has_session_cookie(domain, c))
+            {
+                return Some(cookies);
             }
         }
         return None;
@@ -207,10 +207,10 @@ fn get_cookies_for_domain(
             continue;
         }
         for prof in detector.list_profiles(*browser) {
-            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain) {
-                if cookies.iter().any(|c| has_session_cookie(domain, c)) {
-                    return Some(cookies);
-                }
+            if let Ok(cookies) = CookieReader::read_cookies(&prof, domain)
+                && cookies.iter().any(|c| has_session_cookie(domain, c))
+            {
+                return Some(cookies);
             }
         }
     }
