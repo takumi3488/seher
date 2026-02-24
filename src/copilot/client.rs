@@ -1,6 +1,6 @@
+use crate::Cookie;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Deserialize;
-use crate::Cookie;
 
 #[derive(Debug, Deserialize)]
 pub struct QuotaRemaining {
@@ -39,17 +39,19 @@ impl CopilotQuota {
     }
 }
 
-const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
-    AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+    AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 pub struct CopilotClient;
 
 impl CopilotClient {
-    pub async fn fetch_quota(cookies: &[Cookie]) -> Result<CopilotQuota, Box<dyn std::error::Error>> {
+    pub async fn fetch_quota(
+        cookies: &[Cookie],
+    ) -> Result<CopilotQuota, Box<dyn std::error::Error>> {
         let cookie_header = Self::build_cookie_header(cookies);
 
         let client = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(30))
             .build()?;
 
         let response = client
@@ -93,6 +95,7 @@ impl CopilotClient {
     fn build_cookie_header(cookies: &[Cookie]) -> String {
         cookies
             .iter()
+            .filter(|c| !c.value.bytes().any(|b| b < 0x20 || b == 0x7f))
             .map(|c| format!("{}={}", c.name, c.value))
             .collect::<Vec<_>>()
             .join("; ")

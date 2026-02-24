@@ -1,6 +1,6 @@
-use chrono::{DateTime, Utc};
-use crate::config::AgentConfig;
 use crate::Cookie;
+use crate::config::AgentConfig;
+use chrono::{DateTime, Utc};
 
 pub struct Agent {
     pub config: AgentConfig,
@@ -16,7 +16,11 @@ pub enum AgentLimit {
 
 impl Agent {
     pub fn new(config: AgentConfig, cookies: Vec<Cookie>, domain: String) -> Self {
-        Self { config, cookies, domain }
+        Self {
+            config,
+            cookies,
+            domain,
+        }
     }
 
     pub fn command(&self) -> &str {
@@ -37,15 +41,18 @@ impl Agent {
 
     async fn check_claude_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
         let usage = crate::claude::ClaudeClient::fetch_usage(&self.cookies).await?;
-        
+
         if let Some(reset_time) = usage.next_reset_time() {
-            Ok(AgentLimit::Limited { reset_time: Some(reset_time) })
+            Ok(AgentLimit::Limited {
+                reset_time: Some(reset_time),
+            })
         } else {
-            let is_limited = usage.five_hour
+            let is_limited = usage
+                .five_hour
                 .as_ref()
                 .map(|w| w.utilization >= 100.0)
                 .unwrap_or(false);
-            
+
             if is_limited {
                 Ok(AgentLimit::Limited { reset_time: None })
             } else {
@@ -56,9 +63,11 @@ impl Agent {
 
     async fn check_copilot_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
         let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;
-        
+
         if quota.is_limited() {
-            Ok(AgentLimit::Limited { reset_time: quota.reset_time })
+            Ok(AgentLimit::Limited {
+                reset_time: quota.reset_time,
+            })
         } else {
             Ok(AgentLimit::NotLimited)
         }

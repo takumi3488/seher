@@ -49,7 +49,7 @@ pub async fn run(args: Args) {
 
     for config in &settings.agents {
         let domain = get_domain_for_command(&config.command);
-        
+
         let cookies = match get_cookies_for_domain(
             &detector,
             &browsers,
@@ -212,7 +212,9 @@ fn get_cookies_for_domain(
 fn has_session_cookie(domain: &str, cookie: &seher::Cookie) -> bool {
     match domain {
         "claude.ai" => cookie.name == "sessionKey",
-        "github.com" => cookie.name == "dotcom_user" || cookie.name == "logged_in",
+        "github.com" => {
+            cookie.name == "user_session" || cookie.name == "__Host-user_session_same_site"
+        }
         _ => false,
     }
 }
