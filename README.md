@@ -35,6 +35,15 @@ All Chromium-based browsers use the same cookie storage format and encryption. F
 
 ## Installation
 
+### Pre-built binaries (recommended)
+
+Pre-built binaries are available for macOS and Linux (x86_64 and aarch64):
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/takumi3488/seher/releases/latest/download/seher-installer.sh | sh
+```
+
+### Build from source
 
 ```sh
 cargo install sehercode # Note that it's not seher!
