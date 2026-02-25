@@ -69,6 +69,20 @@ jobs:
     needs: [build-local-artifacts, build-global-artifacts]
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve tag from SHA
+        id: get_tag
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          TAG=$(gh api "repos/${{ github.repository }}/git/refs/tags" \
+            --jq --arg sha "$SHA" '.[] | select(.object.sha == $sha) | .ref | ltrimstr("refs/tags/")' | head -1)
+          if [ -z "$TAG" ]; then
+            echo "Error: Could not resolve tag from SHA $SHA" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -80,9 +94,9 @@ jobs:
         with:
           artifacts: "artifacts/**/*"
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.workflow_run.head_branch }}
+          tag: ${{ steps.get_tag.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.event.workflow_run.head_branch, 'alpha') || contains(github.event.workflow_run.head_branch, 'beta') }}
+          prerelease: ${{ contains(steps.get_tag.outputs.tag, 'alpha') || contains(steps.get_tag.outputs.tag, 'beta') }}
           allowUpdates: true
           generateReleaseNotes: true
 
