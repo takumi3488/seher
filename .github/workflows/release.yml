@@ -1,0 +1,102 @@
+name: Release Binaries
+
+permissions:
+  contents: write
+
+on:
+  workflow_run:
+    workflows: ["Publish to crates.io"]
+    types:
+      - completed
+
+jobs:
+  build-local-artifacts:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-apple-darwin
+            runner: macos-14
+          - target: x86_64-apple-darwin
+            runner: macos-13
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: main
+
+      - name: Install dist v0.31.0
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+
+      - name: Build local artifacts
+        run: dist build --target=${{ matrix.target }} --artifacts=local
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.target }}
+          path: target/distrib/
+
+  build-global-artifacts:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: main
+
+      - name: Install dist v0.31.0
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+
+      - name: Build global artifacts
+        run: dist build --artifacts=global
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-global
+          path: target/distrib/
+
+  publish-release:
+    needs: [build-local-artifacts, build-global-artifacts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag from SHA
+        id: get_tag
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          TAG=$(gh api "repos/${{ github.repository }}/git/refs/tags" \
+            --jq --arg sha "$SHA" '.[] | select(.object.sha == $sha) | .ref | ltrimstr("refs/tags/")' | head -1)
+          if [ -z "$TAG" ]; then
+            echo "Error: Could not resolve tag from SHA $SHA" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@440c952f5d7b02cd0785b2de648f8efca74e1d0e # v1
+        with:
+          artifacts: "artifacts/**/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.get_tag.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.get_tag.outputs.tag, 'alpha') || contains(steps.get_tag.outputs.tag, 'beta') }}
+          allowUpdates: true
+          generateReleaseNotes: true
+
