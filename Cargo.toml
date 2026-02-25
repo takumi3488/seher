@@ -55,13 +55,15 @@ strip = true
 inherits = "release"
 lto = "thin"
 
-[package.metadata.dist]
+[workspace.metadata.dist]
 cargo-dist-version = "0.31.0"
 ci = ["github"]
-installers = ["shell"]
+installers = ["shell", "homebrew"]
 targets = [
   "x86_64-unknown-linux-gnu",
   "aarch64-unknown-linux-gnu",
   "aarch64-apple-darwin",
   "x86_64-apple-darwin",
 ]
+publish-jobs = ["homebrew"]
+tap = "takumi3488/homebrew-tap"
