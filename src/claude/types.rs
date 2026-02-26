@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct UsageWindow {
     pub utilization: f64,
     pub resets_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct UsageResponse {
     pub five_hour: Option<UsageWindow>,
     pub seven_day: Option<UsageWindow>,

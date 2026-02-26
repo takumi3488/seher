@@ -1,6 +1,7 @@
 use crate::Cookie;
 use crate::config::AgentConfig;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 pub struct Agent {
     pub config: AgentConfig,
@@ -12,6 +13,21 @@ pub struct Agent {
 pub enum AgentLimit {
     NotLimited,
     Limited { reset_time: Option<DateTime<Utc>> },
+}
+
+#[derive(Debug, Serialize)]
+pub struct UsageEntry {
+    #[serde(rename = "type")]
+    pub entry_type: String,
+    pub limited: bool,
+    pub utilization: f64,
+    pub resets_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AgentStatus {
+    pub command: String,
+    pub usage: Vec<UsageEntry>,
 }
 
 impl Agent {
@@ -35,6 +51,56 @@ impl Agent {
         match self.domain.as_str() {
             "claude.ai" => self.check_claude_limit().await,
             "github.com" => self.check_copilot_limit().await,
+            _ => Err(format!("Unknown domain: {}", self.domain).into()),
+        }
+    }
+
+    pub async fn fetch_status(&self) -> Result<AgentStatus, Box<dyn std::error::Error>> {
+        match self.domain.as_str() {
+            "claude.ai" => {
+                let usage = crate::claude::ClaudeClient::fetch_usage(&self.cookies).await?;
+                let windows = [
+                    ("five_hour", &usage.five_hour),
+                    ("seven_day", &usage.seven_day),
+                    ("seven_day_sonnet", &usage.seven_day_sonnet),
+                ];
+                let entries = windows
+                    .into_iter()
+                    .filter_map(|(name, w)| {
+                        w.as_ref().map(|w| UsageEntry {
+                            entry_type: name.to_string(),
+                            limited: w.utilization >= 100.0,
+                            utilization: w.utilization,
+                            resets_at: w.resets_at,
+                        })
+                    })
+                    .collect();
+                Ok(AgentStatus {
+                    command: self.config.command.clone(),
+                    usage: entries,
+                })
+            }
+            "github.com" => {
+                let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;
+                let entries = vec![
+                    UsageEntry {
+                        entry_type: "chat_utilization".to_string(),
+                        limited: quota.chat_utilization >= 100.0,
+                        utilization: quota.chat_utilization,
+                        resets_at: quota.reset_time,
+                    },
+                    UsageEntry {
+                        entry_type: "premium_utilization".to_string(),
+                        limited: quota.premium_utilization >= 100.0,
+                        utilization: quota.premium_utilization,
+                        resets_at: quota.reset_time,
+                    },
+                ];
+                Ok(AgentStatus {
+                    command: self.config.command.clone(),
+                    usage: entries,
+                })
+            }
             _ => Err(format!("Unknown domain: {}", self.domain).into()),
         }
     }
