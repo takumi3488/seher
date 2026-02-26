@@ -1,6 +1,6 @@
 use crate::Cookie;
 use chrono::{DateTime, NaiveDate, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct QuotaRemaining {
@@ -22,7 +22,7 @@ pub struct CopilotQuotaResponse {
     pub quotas: Quotas,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CopilotQuota {
     pub chat_utilization: f64,
     pub premium_utilization: f64,

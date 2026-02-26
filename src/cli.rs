@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
-use seher::{Agent, AgentLimit, BrowserDetector, BrowserType, CookieReader, Settings};
+use seher::{Agent, AgentLimit, AgentStatus, BrowserDetector, BrowserType, CookieReader, Settings};
 use std::str::FromStr;
 use zzsleep::sleep_until;
 
@@ -22,6 +22,10 @@ pub struct Args {
     /// Suppress informational output (usage, sleep progress, etc.)
     #[arg(long, short)]
     pub quiet: bool,
+
+    /// Output provider usage as JSON and exit
+    #[arg(long, short = 'j')]
+    pub json: bool,
 
     /// Additional arguments to pass to the agent command
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -83,6 +87,21 @@ pub async fn run(args: Args) {
 
     if agents.is_empty() {
         eprintln!("No agents with valid cookies found");
+        return;
+    }
+
+    if args.json {
+        let mut statuses: Vec<AgentStatus> = Vec::new();
+        for agent in &agents {
+            match agent.fetch_status().await {
+                Ok(status) => statuses.push(status),
+                Err(e) => eprintln!("Failed to fetch status for {}: {}", agent.command(), e),
+            }
+        }
+        match serde_json::to_string_pretty(&statuses) {
+            Ok(json) => println!("{}", json),
+            Err(e) => eprintln!("Failed to serialize status: {}", e),
+        }
         return;
     }
 
