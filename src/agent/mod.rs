@@ -113,11 +113,14 @@ impl Agent {
                 reset_time: Some(reset_time),
             })
         } else {
-            let is_limited = usage
-                .five_hour
-                .as_ref()
-                .map(|w| w.utilization >= 100.0)
-                .unwrap_or(false);
+            let is_limited = [
+                usage.five_hour.as_ref(),
+                usage.seven_day.as_ref(),
+                usage.seven_day_sonnet.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|w| w.utilization >= 100.0);
 
             if is_limited {
                 Ok(AgentLimit::Limited { reset_time: None })

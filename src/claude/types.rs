@@ -16,11 +16,15 @@ pub struct UsageResponse {
 
 impl UsageResponse {
     pub fn next_reset_time(&self) -> Option<chrono::DateTime<Utc>> {
-        [self.five_hour.as_ref(), self.seven_day.as_ref()]
-            .into_iter()
-            .flatten()
-            .filter(|w| w.utilization >= 100.0)
-            .filter_map(|w| w.resets_at)
-            .max()
+        [
+            self.five_hour.as_ref(),
+            self.seven_day.as_ref(),
+            self.seven_day_sonnet.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|w| w.utilization >= 100.0)
+        .filter_map(|w| w.resets_at)
+        .max()
     }
 }
