@@ -312,7 +312,7 @@ jobs:
           export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
           brew update
 
-          for release in $(echo "$PLAN" | jq --compact-output '.releases[] | select([.artifacts[] | endswith(".rb")] | any)'); do
+          while IFS= read -r release; do
             version=$(echo "$release" | jq .app_version --raw-output)
 
             while IFS= read -r filename; do
@@ -323,8 +323,8 @@ jobs:
               git add "Formula/${filename}"
               git diff --staged --quiet || git commit -m "${name} ${version}"
             done < <(echo "$release" | jq -r '.artifacts[] | select(endswith(".rb"))')
-          done
-          git push
+          done < <(echo "$PLAN" | jq -c '.releases[] | select([.artifacts[] | endswith(".rb")] | any)')
+          [ "$(git rev-list --count origin/HEAD..HEAD)" -gt 0 ] && git push || true
 
   announce:
     needs:
