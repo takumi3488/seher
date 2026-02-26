@@ -55,6 +55,9 @@ strip = true
 inherits = "release"
 lto = "thin"
 
+[package.metadata.dist]
+formula = "seher"
+
 [workspace.metadata.dist]
 cargo-dist-version = "0.31.0"
 ci = ["github"]
