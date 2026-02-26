@@ -82,3 +82,41 @@ It is recommended to alias frequently used options as follows:
 alias shr="seher --profile 'Profile 1' --permission-mode bypassPermissions"
 ```
 
+
+## Configuration
+
+
+You can customize seher's behavior by creating `~/.seher/settings.json`. If the file does not exist, the default configuration (using `claude` with no extra arguments) is applied.
+
+
+### Settings
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agents` | array | List of agents to use |
+| `agents[].command` | string | Command name (`"claude"` or `"copilot"`) |
+| `agents[].args` | array of strings | Additional arguments (optional) |
+
+
+### Example
+
+
+```json
+{
+  "agents": [
+    {
+      "command": "claude",
+      "args": ["--permission-mode", "bypassPermissions"]
+    },
+    {
+      "command": "copilot",
+      "args": []
+    }
+  ]
+}
+```
+
+
+When multiple agents are configured, seher preferentially selects agents that are not rate-limited.
+
