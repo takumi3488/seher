@@ -5,11 +5,7 @@ use std::str::FromStr;
 use zzsleep::sleep_until;
 
 #[derive(Parser)]
-#[command(
-    name = "seher",
-    about = "CLI tool for Claude.ai and Copilot rate limit monitoring",
-    disable_help_flag = true
-)]
+#[command(name = "seher", about = "CLI tool for Claude.ai and Copilot rate limit monitoring")]
 pub struct Args {
     /// Browser to use (chrome, edge, brave, firefox, safari, etc.)
     #[arg(long, short)]
