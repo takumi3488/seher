@@ -60,6 +60,7 @@ formula = "seher"
 
 [workspace.metadata.dist]
 cargo-dist-version = "0.31.0"
+allow-dirty = ["ci"]
 ci = ["github"]
 installers = ["shell", "homebrew"]
 publish-jobs = ["homebrew"]
