@@ -117,7 +117,7 @@ pub async fn run(args: Args) {
             println!(
                 "Checking limit for {} {}...",
                 agent.command(),
-                agent.args().join(" ")
+                agent.resolved_args(args.model.as_deref()).join(" ")
             );
         }
 
@@ -282,7 +282,7 @@ async fn execute_agent(
     quiet: bool,
 ) {
     let selected_agent = &agents[selected_index];
-    let mut final_args = agent_args.clone();
+    let mut final_args = agent_args;
 
     if final_args.is_empty() && !quiet {
         match prompt_from_editor().await {
@@ -295,12 +295,12 @@ async fn execute_agent(
         }
     }
 
+    let resolved = selected_agent.resolved_args(model);
     if !quiet {
         println!(
             "Executing: {} {}",
             selected_agent.command(),
-            selected_agent
-                .resolved_args(model)
+            resolved
                 .iter()
                 .chain(final_args.iter())
                 .map(|s: &String| s.as_str())
@@ -309,7 +309,7 @@ async fn execute_agent(
         );
     }
 
-    if let Err(e) = selected_agent.execute(&final_args, model) {
+    if let Err(e) = selected_agent.execute(&resolved, &final_args) {
         eprintln!("Failed to execute agent: {}", e);
     }
 }
