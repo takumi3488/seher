@@ -23,6 +23,10 @@ pub struct Args {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub agent_args: Vec<String>,
 
+    /// Model level to use (e.g. "high", "low"), resolved via agent's models map
+    #[arg(long, short)]
+    pub model: Option<String>,
+
     /// Suppress informational output (usage, sleep progress, etc.)
     #[arg(long, short)]
     pub quiet: bool,
@@ -113,7 +117,7 @@ pub async fn run(args: Args) {
             println!(
                 "Checking limit for {} {}...",
                 agent.command(),
-                agent.args().join(" ")
+                agent.resolved_args(args.model.as_deref()).join(" ")
             );
         }
 
@@ -148,7 +152,14 @@ pub async fn run(args: Args) {
                 agents[selected_index].command()
             );
         }
-        execute_agent(&agents, selected_index, args.agent_args, args.quiet).await;
+        execute_agent(
+            &agents,
+            selected_index,
+            args.agent_args,
+            args.model.as_deref(),
+            args.quiet,
+        )
+        .await;
         return;
     }
 
@@ -171,7 +182,14 @@ pub async fn run(args: Args) {
                 );
             }
             sleep_until_reset(rt, args.quiet).await;
-            execute_agent(&agents, idx, args.agent_args, args.quiet).await;
+            execute_agent(
+                &agents,
+                idx,
+                args.agent_args,
+                args.model.as_deref(),
+                args.quiet,
+            )
+            .await;
             return;
         } else if !args.quiet {
             println!("All agents limited, no reset time available");
@@ -260,10 +278,11 @@ async fn execute_agent(
     agents: &[Agent],
     selected_index: usize,
     agent_args: Vec<String>,
+    model: Option<&str>,
     quiet: bool,
 ) {
     let selected_agent = &agents[selected_index];
-    let mut final_args = agent_args.clone();
+    let mut final_args = agent_args;
 
     if final_args.is_empty() && !quiet {
         match prompt_from_editor().await {
@@ -276,12 +295,12 @@ async fn execute_agent(
         }
     }
 
+    let resolved = selected_agent.resolved_args(model);
     if !quiet {
         println!(
             "Executing: {} {}",
             selected_agent.command(),
-            selected_agent
-                .args()
+            resolved
                 .iter()
                 .chain(final_args.iter())
                 .map(|s: &String| s.as_str())
@@ -290,7 +309,7 @@ async fn execute_agent(
         );
     }
 
-    if let Err(e) = selected_agent.execute(&final_args) {
+    if let Err(e) = selected_agent.execute(&resolved, &final_args) {
         eprintln!("Failed to execute agent: {}", e);
     }
 }

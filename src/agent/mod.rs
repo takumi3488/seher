@@ -142,10 +142,36 @@ impl Agent {
         }
     }
 
-    pub fn execute(&self, extra_args: &[String]) -> std::io::Result<std::process::ExitStatus> {
+    pub fn execute(
+        &self,
+        resolved_args: &[String],
+        extra_args: &[String],
+    ) -> std::io::Result<std::process::ExitStatus> {
         let mut cmd = std::process::Command::new(self.command());
-        cmd.args(self.args());
+        cmd.args(resolved_args);
         cmd.args(extra_args);
         cmd.status()
+    }
+
+    pub fn resolved_args(&self, model: Option<&str>) -> Vec<String> {
+        const MODEL_PLACEHOLDER: &str = "{model}";
+        self.config
+            .args
+            .iter()
+            .filter_map(|arg| {
+                if arg.contains(MODEL_PLACEHOLDER) {
+                    let model_key = model?;
+                    let replacement = self
+                        .config
+                        .models
+                        .as_ref()
+                        .and_then(|m| m.get(model_key))
+                        .map_or(model_key, |s| s.as_str());
+                    Some(arg.replace(MODEL_PLACEHOLDER, replacement))
+                } else {
+                    Some(arg.clone())
+                }
+            })
+            .collect()
     }
 }

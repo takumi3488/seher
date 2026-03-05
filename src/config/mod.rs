@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -11,6 +12,8 @@ pub struct AgentConfig {
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub models: Option<HashMap<String, String>>,
 }
 
 impl Default for Settings {
@@ -19,6 +22,7 @@ impl Default for Settings {
             agents: vec![AgentConfig {
                 command: "claude".to_string(),
                 args: vec![],
+                models: None,
             }],
         }
     }
@@ -38,5 +42,91 @@ impl Settings {
     fn settings_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
         let home = dirs::home_dir().ok_or("HOME directory not found")?;
         Ok(home.join(".seher").join("settings.json"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_settings_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("examples")
+            .join("settings.json")
+    }
+
+    #[test]
+    fn test_parse_sample_settings() {
+        let content = std::fs::read_to_string(sample_settings_path())
+            .expect("examples/settings.json not found");
+        let settings: Settings = serde_json::from_str(&content).expect("failed to parse settings");
+
+        assert_eq!(settings.agents.len(), 2);
+    }
+
+    #[test]
+    fn test_sample_settings_claude_agent() {
+        let content = std::fs::read_to_string(sample_settings_path()).unwrap();
+        let settings: Settings = serde_json::from_str(&content).unwrap();
+
+        let claude = &settings.agents[0];
+        assert_eq!(claude.command, "claude");
+        assert_eq!(
+            claude.args,
+            [
+                "--permission-mode",
+                "bypassPermissions",
+                "--model",
+                "{model}"
+            ]
+        );
+
+        let models = claude.models.as_ref().expect("models should be present");
+        assert_eq!(models.get("high").map(String::as_str), Some("opus"));
+        assert_eq!(models.get("low").map(String::as_str), Some("sonnet"));
+    }
+
+    #[test]
+    fn test_sample_settings_copilot_agent() {
+        let content = std::fs::read_to_string(sample_settings_path()).unwrap();
+        let settings: Settings = serde_json::from_str(&content).unwrap();
+
+        let copilot = &settings.agents[1];
+        assert_eq!(copilot.command, "copilot");
+        assert_eq!(copilot.args, ["--model", "{model}", "--yolo"]);
+
+        let models = copilot.models.as_ref().expect("models should be present");
+        assert_eq!(
+            models.get("high").map(String::as_str),
+            Some("claude-opus-4.5")
+        );
+        assert_eq!(
+            models.get("low").map(String::as_str),
+            Some("claude-sonnet-4.5")
+        );
+    }
+
+    #[test]
+    fn test_parse_minimal_settings_without_models() {
+        let json = r#"{"agents": [{"command": "claude"}]}"#;
+        let settings: Settings =
+            serde_json::from_str(json).expect("failed to parse minimal settings");
+
+        assert_eq!(settings.agents.len(), 1);
+        assert_eq!(settings.agents[0].command, "claude");
+        assert!(settings.agents[0].args.is_empty());
+        assert!(settings.agents[0].models.is_none());
+    }
+
+    #[test]
+    fn test_parse_settings_with_args_no_models() {
+        let json = r#"{"agents": [{"command": "claude", "args": ["--permission-mode", "bypassPermissions"]}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            settings.agents[0].args,
+            ["--permission-mode", "bypassPermissions"]
+        );
+        assert!(settings.agents[0].models.is_none());
     }
 }
