@@ -158,19 +158,17 @@ impl Agent {
         self.config
             .args
             .iter()
-            .map(|arg| {
+            .filter_map(|arg| {
                 if arg.contains("{model}") {
-                    if let Some(model_key) = model {
-                        if let Some(models) = &self.config.models
-                            && let Some(resolved) = models.get(model_key)
-                        {
-                            return arg.replace("{model}", resolved);
-                        }
-                        return arg.replace("{model}", model_key);
+                    let model_key = model?;
+                    if let Some(models) = &self.config.models
+                        && let Some(resolved) = models.get(model_key)
+                    {
+                        return Some(arg.replace("{model}", resolved));
                     }
-                    arg.clone()
+                    Some(arg.replace("{model}", model_key))
                 } else {
-                    arg.clone()
+                    Some(arg.clone())
                 }
             })
             .collect()
