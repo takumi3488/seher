@@ -37,10 +37,13 @@ impl Settings {
             Some(p) => p.to_path_buf(),
             None => Self::settings_path()?,
         };
-        if !path.exists() {
-            return Ok(Settings::default());
-        }
-        let content = std::fs::read_to_string(&path)?;
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Settings::default());
+            }
+            Err(e) => return Err(e.into()),
+        };
         let settings: Settings = serde_json::from_str(&content)?;
         Ok(settings)
     }
