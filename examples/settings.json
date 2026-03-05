@@ -1,0 +1,20 @@
+{
+  "agents": [
+    {
+      "command": "claude",
+      "args": ["--permission-mode", "bypassPermissions", "--model", "{model}"],
+      "models": {
+        "high": "claude-opus-4-5",
+        "low": "claude-sonnet-4-5"
+      }
+    },
+    {
+      "command": "copilot",
+      "args": ["--model", "{model}", "--yolo"],
+      "models": {
+        "high": "claude-opus-4.5",
+        "low": "claude-sonnet-4.5"
+      }
+    }
+  ]
+}
