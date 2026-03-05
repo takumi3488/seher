@@ -161,10 +161,10 @@ impl Agent {
             .map(|arg| {
                 if arg.contains("{model}") {
                     if let Some(model_key) = model {
-                        if let Some(models) = &self.config.models {
-                            if let Some(resolved) = models.get(model_key) {
-                                return arg.replace("{model}", resolved);
-                            }
+                        if let Some(models) = &self.config.models
+                            && let Some(resolved) = models.get(model_key)
+                        {
+                            return arg.replace("{model}", resolved);
                         }
                         return arg.replace("{model}", model_key);
                     }
