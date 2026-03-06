@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use seher::{Agent, AgentLimit, AgentStatus, BrowserDetector, BrowserType, CookieReader, Settings};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
 use zzsleep::sleep_until;
@@ -150,7 +151,7 @@ pub async fn run(args: Args) {
     }
 
     if let Some(model_key) = args.model.as_deref() {
-        let model_agents: Vec<usize> = agents
+        let model_agents: HashSet<usize> = agents
             .iter()
             .enumerate()
             .filter(|(_, a)| a.has_model(model_key))
