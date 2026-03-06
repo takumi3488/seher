@@ -199,10 +199,12 @@ impl Agent {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::config::AgentConfig;
 
-    fn make_agent(models: Option<std::collections::HashMap<String, String>>) -> Agent {
+    fn make_agent(models: Option<HashMap<String, String>>) -> Agent {
         Agent::new(
             AgentConfig {
                 command: "claude".to_string(),
