@@ -186,11 +186,11 @@ impl Agent {
             .collect();
 
         // models未設定の場合、--model <value> をそのまま渡す
-        if self.config.models.is_none() {
-            if let Some(model_key) = model {
-                args.push("--model".to_string());
-                args.push(model_key.to_string());
-            }
+        if self.config.models.is_none()
+            && let Some(model_key) = model
+        {
+            args.push("--model".to_string());
+            args.push(model_key.to_string());
         }
 
         args
