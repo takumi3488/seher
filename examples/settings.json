@@ -2,21 +2,35 @@
   "agents": [
     {
       "command": "claude",
-      "args": ["--permission-mode", "bypassPermissions", "--model", "{model}"],
+      "args": ["--model", "{model}"],
       "models": {
         "high": "opus",
-        "low": "sonnet"
-      },
-      "env": {
-        "CLAUDE_CODE_MAX_TURNS": "100"
+        "medium": "sonnet",
+        "low": "haiku",
+        "sonnet": "sonnet"
       }
     },
     {
-      "command": "copilot",
+      "command": "opencode",
+      "provider": "copilot",
       "args": ["--model", "{model}", "--yolo"],
       "models": {
-        "high": "claude-opus-4.5",
-        "low": "claude-sonnet-4.5"
+        "high": "github-copilot/gpt-5.4",
+        "medium": "github-copilot/gpt-5.4",
+        "low": "github-copilot/claude-haiku-4.5"
+      }
+    },
+    {
+      "command": "claude",
+      "provider": null,
+      "args": ["--model", "{model}"],
+      "models": {
+        "medium": "MiniMax-M2.5",
+        "low": "MiniMax-M2.5"
+      },
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "your-api-key-here",
+        "ANTHROPIC_BASE_URL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
       }
     }
   ]

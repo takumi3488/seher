@@ -7,6 +7,14 @@ pub struct Settings {
     pub agents: Vec<AgentConfig>,
 }
 
+fn deserialize_provider<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt: Option<String> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(Some(opt))
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct AgentConfig {
     pub command: String,
@@ -16,6 +24,26 @@ pub struct AgentConfig {
     pub models: Option<HashMap<String, String>>,
     #[serde(default)]
     pub env: Option<HashMap<String, String>>,
+    #[serde(default, deserialize_with = "deserialize_provider")]
+    pub provider: Option<Option<String>>,
+}
+
+fn provider_to_domain(provider: &str) -> Option<&str> {
+    match provider {
+        "claude" => Some("claude.ai"),
+        "copilot" => Some("github.com"),
+        _ => None,
+    }
+}
+
+impl AgentConfig {
+    pub fn resolve_domain(&self) -> Option<&str> {
+        match &self.provider {
+            Some(Some(p)) => provider_to_domain(p),
+            Some(None) => None,
+            None => provider_to_domain(&self.command),
+        }
+    }
 }
 
 impl Default for Settings {
@@ -26,6 +54,7 @@ impl Default for Settings {
                 args: vec![],
                 models: None,
                 env: None,
+                provider: None,
             }],
         }
     }
@@ -70,7 +99,7 @@ mod tests {
             .expect("examples/settings.json not found");
         let settings: Settings = serde_json::from_str(&content).expect("failed to parse settings");
 
-        assert_eq!(settings.agents.len(), 2);
+        assert_eq!(settings.agents.len(), 3);
     }
 
     #[test]
@@ -80,19 +109,15 @@ mod tests {
 
         let claude = &settings.agents[0];
         assert_eq!(claude.command, "claude");
-        assert_eq!(
-            claude.args,
-            [
-                "--permission-mode",
-                "bypassPermissions",
-                "--model",
-                "{model}"
-            ]
-        );
+        assert_eq!(claude.args, ["--model", "{model}"]);
 
         let models = claude.models.as_ref().expect("models should be present");
         assert_eq!(models.get("high").map(String::as_str), Some("opus"));
-        assert_eq!(models.get("low").map(String::as_str), Some("sonnet"));
+        assert_eq!(models.get("medium").map(String::as_str), Some("sonnet"));
+
+        // provider フィールドなし → None (コマンド名から推論)
+        assert!(claude.provider.is_none());
+        assert_eq!(claude.resolve_domain(), Some("claude.ai"));
     }
 
     #[test]
@@ -100,19 +125,78 @@ mod tests {
         let content = std::fs::read_to_string(sample_settings_path()).unwrap();
         let settings: Settings = serde_json::from_str(&content).unwrap();
 
-        let copilot = &settings.agents[1];
-        assert_eq!(copilot.command, "copilot");
-        assert_eq!(copilot.args, ["--model", "{model}", "--yolo"]);
+        let opencode = &settings.agents[1];
+        assert_eq!(opencode.command, "opencode");
+        assert_eq!(opencode.args, ["--model", "{model}", "--yolo"]);
 
-        let models = copilot.models.as_ref().expect("models should be present");
+        let models = opencode.models.as_ref().expect("models should be present");
         assert_eq!(
             models.get("high").map(String::as_str),
-            Some("claude-opus-4.5")
+            Some("github-copilot/gpt-5.4")
         );
         assert_eq!(
             models.get("low").map(String::as_str),
-            Some("claude-sonnet-4.5")
+            Some("github-copilot/claude-haiku-4.5")
         );
+
+        // provider: "copilot" → Some(Some("copilot"))
+        assert_eq!(opencode.provider, Some(Some("copilot".to_string())));
+        assert_eq!(opencode.resolve_domain(), Some("github.com"));
+    }
+
+    #[test]
+    fn test_sample_settings_fallback_agent() {
+        let content = std::fs::read_to_string(sample_settings_path()).unwrap();
+        let settings: Settings = serde_json::from_str(&content).unwrap();
+
+        let fallback = &settings.agents[2];
+        assert_eq!(fallback.command, "claude");
+
+        // provider: null → Some(None) (フォールバック)
+        assert_eq!(fallback.provider, Some(None));
+        assert_eq!(fallback.resolve_domain(), None);
+    }
+
+    #[test]
+    fn test_provider_field_absent() {
+        let json = r#"{"agents": [{"command": "claude"}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert!(settings.agents[0].provider.is_none());
+        assert_eq!(settings.agents[0].resolve_domain(), Some("claude.ai"));
+    }
+
+    #[test]
+    fn test_provider_field_null() {
+        let json = r#"{"agents": [{"command": "claude", "provider": null}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert_eq!(settings.agents[0].provider, Some(None));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+    }
+
+    #[test]
+    fn test_provider_field_string() {
+        let json = r#"{"agents": [{"command": "opencode", "provider": "copilot"}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            settings.agents[0].provider,
+            Some(Some("copilot".to_string()))
+        );
+        assert_eq!(settings.agents[0].resolve_domain(), Some("github.com"));
+    }
+
+    #[test]
+    fn test_provider_unknown_string() {
+        let json = r#"{"agents": [{"command": "someai", "provider": "unknown"}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            settings.agents[0].provider,
+            Some(Some("unknown".to_string()))
+        );
+        assert_eq!(settings.agents[0].resolve_domain(), None);
     }
 
     #[test]

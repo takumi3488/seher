@@ -6,7 +6,6 @@ use serde::Serialize;
 pub struct Agent {
     pub config: AgentConfig,
     pub cookies: Vec<Cookie>,
-    pub domain: String,
 }
 
 #[derive(Debug)]
@@ -31,12 +30,8 @@ pub struct AgentStatus {
 }
 
 impl Agent {
-    pub fn new(config: AgentConfig, cookies: Vec<Cookie>, domain: String) -> Self {
-        Self {
-            config,
-            cookies,
-            domain,
-        }
+    pub fn new(config: AgentConfig, cookies: Vec<Cookie>) -> Self {
+        Self { config, cookies }
     }
 
     pub fn command(&self) -> &str {
@@ -48,16 +43,21 @@ impl Agent {
     }
 
     pub async fn check_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
-        match self.domain.as_str() {
-            "claude.ai" => self.check_claude_limit().await,
-            "github.com" => self.check_copilot_limit().await,
-            _ => Err(format!("Unknown domain: {}", self.domain).into()),
+        match self.config.resolve_domain() {
+            Some("claude.ai") => self.check_claude_limit().await,
+            Some("github.com") => self.check_copilot_limit().await,
+            None => Ok(AgentLimit::NotLimited),
+            Some(d) => Err(format!("Unknown domain: {}", d).into()),
         }
     }
 
     pub async fn fetch_status(&self) -> Result<AgentStatus, Box<dyn std::error::Error>> {
-        match self.domain.as_str() {
-            "claude.ai" => {
+        match self.config.resolve_domain() {
+            None => Ok(AgentStatus {
+                command: self.config.command.clone(),
+                usage: vec![],
+            }),
+            Some("claude.ai") => {
                 let usage = crate::claude::ClaudeClient::fetch_usage(&self.cookies).await?;
                 let windows = [
                     ("five_hour", &usage.five_hour),
@@ -80,7 +80,7 @@ impl Agent {
                     usage: entries,
                 })
             }
-            "github.com" => {
+            Some("github.com") => {
                 let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;
                 let entries = vec![
                     UsageEntry {
@@ -101,7 +101,7 @@ impl Agent {
                     usage: entries,
                 })
             }
-            _ => Err(format!("Unknown domain: {}", self.domain).into()),
+            Some(d) => Err(format!("Unknown domain: {}", d).into()),
         }
     }
 
@@ -211,9 +211,9 @@ mod tests {
                 args: vec![],
                 models,
                 env: None,
+                provider: None,
             },
             vec![],
-            "claude.ai".to_string(),
         )
     }
 
