@@ -2,10 +2,13 @@
   "agents": [
     {
       "command": "claude",
-      "args": ["--permission-mode", "bypassPermissions", "--model", "{model}"],
+      "args": ["--model", "{model}"],
       "models": {
         "high": "opus",
         "low": "sonnet"
+      },
+      "arg_maps": {
+        "--danger": ["--permission-mode", "bypassPermissions"]
       },
       "env": {
         "CLAUDE_CODE_MAX_TURNS": "100"
@@ -13,10 +16,13 @@
     },
     {
       "command": "copilot",
-      "args": ["--model", "{model}", "--yolo"],
+      "args": ["--model", "{model}"],
       "models": {
         "high": "claude-opus-4.5",
         "low": "claude-sonnet-4.5"
+      },
+      "arg_maps": {
+        "--danger": ["--yolo"]
       }
     }
   ]

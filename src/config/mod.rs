@@ -15,6 +15,8 @@ pub struct AgentConfig {
     #[serde(default)]
     pub models: Option<HashMap<String, String>>,
     #[serde(default)]
+    pub arg_maps: HashMap<String, Vec<String>>,
+    #[serde(default)]
     pub env: Option<HashMap<String, String>>,
 }
 
@@ -25,6 +27,7 @@ impl Default for Settings {
                 command: "claude".to_string(),
                 args: vec![],
                 models: None,
+                arg_maps: HashMap::new(),
                 env: None,
             }],
         }
@@ -80,19 +83,18 @@ mod tests {
 
         let claude = &settings.agents[0];
         assert_eq!(claude.command, "claude");
-        assert_eq!(
-            claude.args,
-            [
-                "--permission-mode",
-                "bypassPermissions",
-                "--model",
-                "{model}"
-            ]
-        );
+        assert_eq!(claude.args, ["--model", "{model}"]);
 
         let models = claude.models.as_ref().expect("models should be present");
         assert_eq!(models.get("high").map(String::as_str), Some("opus"));
         assert_eq!(models.get("low").map(String::as_str), Some("sonnet"));
+        assert_eq!(
+            claude.arg_maps.get("--danger").cloned(),
+            Some(vec![
+                "--permission-mode".to_string(),
+                "bypassPermissions".to_string(),
+            ])
+        );
     }
 
     #[test]
@@ -102,7 +104,7 @@ mod tests {
 
         let copilot = &settings.agents[1];
         assert_eq!(copilot.command, "copilot");
-        assert_eq!(copilot.args, ["--model", "{model}", "--yolo"]);
+        assert_eq!(copilot.args, ["--model", "{model}"]);
 
         let models = copilot.models.as_ref().expect("models should be present");
         assert_eq!(
@@ -112,6 +114,10 @@ mod tests {
         assert_eq!(
             models.get("low").map(String::as_str),
             Some("claude-sonnet-4.5")
+        );
+        assert_eq!(
+            copilot.arg_maps.get("--danger").cloned(),
+            Some(vec!["--yolo".to_string()])
         );
     }
 
@@ -125,6 +131,7 @@ mod tests {
         assert_eq!(settings.agents[0].command, "claude");
         assert!(settings.agents[0].args.is_empty());
         assert!(settings.agents[0].models.is_none());
+        assert!(settings.agents[0].arg_maps.is_empty());
     }
 
     #[test]
@@ -156,5 +163,20 @@ mod tests {
             ["--permission-mode", "bypassPermissions"]
         );
         assert!(settings.agents[0].models.is_none());
+        assert!(settings.agents[0].arg_maps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_settings_with_arg_maps() {
+        let json = r#"{"agents": [{"command": "claude", "arg_maps": {"--danger": ["--permission-mode", "bypassPermissions"]}}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            settings.agents[0].arg_maps.get("--danger").cloned(),
+            Some(vec![
+                "--permission-mode".to_string(),
+                "bypassPermissions".to_string(),
+            ])
+        );
     }
 }
