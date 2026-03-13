@@ -522,15 +522,15 @@ mod tests {
         let json = r#"{"agents": [{"command": "claude", "env": {"ANTHROPIC_API_KEY": "sk-test", "CLAUDE_CODE_MAX_TURNS": "100"}}]}"#;
         let settings: Settings = serde_json::from_str(json)?;
 
-        let env = settings.agents[0].env.as_ref().ok_or("env should be present")?;
+        let env = settings.agents[0]
+            .env
+            .as_ref()
+            .ok_or("env should be present")?;
         assert_eq!(
             env.get("ANTHROPIC_API_KEY").map(String::as_str),
             Some("sk-test")
         );
-        assert_eq!(
-            env.get("CLAUDE_CODE_MAX_HOURS").map(String::as_str),
-            None
-        );
+        assert_eq!(env.get("CLAUDE_CODE_MAX_HOURS").map(String::as_str), None);
         assert_eq!(
             env.get("CLAUDE_CODE_MAX_TURNS").map(String::as_str),
             Some("100")

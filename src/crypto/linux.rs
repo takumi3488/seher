@@ -74,9 +74,7 @@ fn decrypt_aes_cbc(key: &[u8], encrypted: &[u8]) -> Result<String> {
     let mut buffer = encrypted.to_vec();
     let decrypted = cipher
         .decrypt_padded_mut::<aes::cipher::block_padding::Pkcs7>(&mut buffer)
-        .map_err(|e| {
-            CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {e:?}"))
-        })?;
+        .map_err(|e| CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {e:?}")))?;
 
     String::from_utf8(decrypted.to_vec())
         .map_err(|e| CryptoError::DecryptionFailed(format!("UTF-8 conversion failed: {e}")))

@@ -366,7 +366,9 @@ impl CookieReader {
         // Safari stores expiry as seconds since Mac OS X epoch (2001-01-01).
         // Convert to Windows epoch microseconds (1601-01-01).
         let expiry_mac_secs = f64_to_i64_saturating((expiry + 978_307_200.0).round());
-        let expires_utc = expiry_mac_secs.saturating_mul(1_000_000).saturating_add(11_644_473_600_000_000);
+        let expires_utc = expiry_mac_secs
+            .saturating_mul(1_000_000)
+            .saturating_add(11_644_473_600_000_000);
 
         Ok(Some(Cookie {
             name,

@@ -153,7 +153,15 @@ async fn build_agents(
         let domain = config.resolve_domain();
         let cookies = match domain {
             Some(d) => {
-                if let Some(c) = get_cookies_for_domain(detector, browsers, args.browser.as_ref(), args.profile.as_ref(), d).await {
+                if let Some(c) = get_cookies_for_domain(
+                    detector,
+                    browsers,
+                    args.browser.as_ref(),
+                    args.profile.as_ref(),
+                    d,
+                )
+                .await
+                {
                     c
                 } else {
                     if !args.quiet {
@@ -228,16 +236,22 @@ async fn run_with_limit_check(settings: &Settings, agents: Vec<Agent>, args: &Ar
         cached_prompt: None,
     };
 
-    if let Some(selected_index) = select_best_available_agent(
-        settings,
-        &agents,
-        &available_indices,
-        args.model.as_deref(),
-    ) {
+    if let Some(selected_index) =
+        select_best_available_agent(settings, &agents, &available_indices, args.model.as_deref())
+    {
         if !args.quiet {
-            println!("Agent {} is available (not limited)", agents[selected_index].command());
+            println!(
+                "Agent {} is available (not limited)",
+                agents[selected_index].command()
+            );
         }
-        execute_with_auto_rerun(&agents, selected_index, &mut input, args.model.as_deref(), args.quiet);
+        execute_with_auto_rerun(
+            &agents,
+            selected_index,
+            &mut input,
+            args.model.as_deref(),
+            args.quiet,
+        );
         return;
     }
 
@@ -569,7 +583,7 @@ async fn sleep_until_reset(reset_time: DateTime<Utc>, quiet: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use seher::{config::ProviderConfig, AgentConfig, PriorityRule};
+    use seher::{AgentConfig, PriorityRule, config::ProviderConfig};
     use std::collections::HashMap;
 
     fn sample_cookie(name: &str) -> seher::Cookie {
@@ -929,10 +943,16 @@ mod tests {
         let output = String::from_utf8(output)?;
 
         // In Model: (none): codex (priority=50) should come before claude (priority=0)
-        let none_start = output.find("Model: (none)").ok_or("Model: (none) not found")?;
+        let none_start = output
+            .find("Model: (none)")
+            .ok_or("Model: (none) not found")?;
         let none_section = &output[none_start..];
-        let codex_pos = none_section.find("command=codex").ok_or("command=codex not found")?;
-        let claude_pos = none_section.find("command=claude").ok_or("command=claude not found")?;
+        let codex_pos = none_section
+            .find("command=codex")
+            .ok_or("command=codex not found")?;
+        let claude_pos = none_section
+            .find("command=claude")
+            .ok_or("command=claude not found")?;
         assert!(
             codex_pos < claude_pos,
             "codex (priority=50) should precede claude (priority=0)"
@@ -963,8 +983,12 @@ mod tests {
             "codex (pass-through) should be in Model: high"
         );
 
-        let claude_pos = high_section.find("command=claude").ok_or("command=claude not found")?;
-        let codex_pos = high_section.find("command=codex").ok_or("command=codex not found")?;
+        let claude_pos = high_section
+            .find("command=claude")
+            .ok_or("command=claude not found")?;
+        let codex_pos = high_section
+            .find("command=codex")
+            .ok_or("command=codex not found")?;
         assert!(
             claude_pos < codex_pos,
             "claude (priority=10) should precede codex (priority=0) in high section"

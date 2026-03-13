@@ -74,9 +74,7 @@ fn get_password_from_cli() -> Result<Vec<u8>> {
             "-w",
         ])
         .output()
-        .map_err(|e| {
-            CryptoError::KeychainError(format!("Failed to run security command: {e}"))
-        })?;
+        .map_err(|e| CryptoError::KeychainError(format!("Failed to run security command: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -96,9 +94,7 @@ fn decrypt_aes_cbc(key: &[u8], encrypted: &[u8]) -> Result<String> {
     let mut buffer = encrypted.to_vec();
     let decrypted = cipher
         .decrypt_padded_mut::<aes::cipher::block_padding::Pkcs7>(&mut buffer)
-        .map_err(|e| {
-            CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {e:?}"))
-        })?;
+        .map_err(|e| CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {e:?}")))?;
 
     // Newer Chrome prepends a 32-byte binary header (31 bytes + 0x60 separator)
     // before the actual cookie value. Scan for valid UTF-8 and strip the header.
