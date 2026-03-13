@@ -9,6 +9,10 @@ const IV: &[u8] = b"                "; // 16 spaces
 const KEY_LENGTH: usize = 16;
 const ITERATIONS: u32 = 1003;
 
+/// # Errors
+///
+/// Returns an error if the encryption version is unsupported, decryption fails, or
+/// the result is not valid UTF-8.
 pub fn decrypt(encrypted_value: &[u8]) -> Result<String> {
     if encrypted_value.len() < 3 {
         return Ok(String::new());
@@ -48,12 +52,12 @@ fn get_chrome_password() -> Result<Vec<u8>> {
 
 fn get_password_from_keychain() -> Result<Vec<u8>> {
     let keychain = SecKeychain::default()
-        .map_err(|e| CryptoError::KeychainError(format!("Failed to access keychain: {}", e)))?;
+        .map_err(|e| CryptoError::KeychainError(format!("Failed to access keychain: {e}")))?;
 
     let (password_data, _item) = keychain
         .find_generic_password("Chrome Safe Storage", "Chrome")
         .map_err(|e| {
-            CryptoError::KeychainError(format!("Failed to find Chrome Safe Storage: {}", e))
+            CryptoError::KeychainError(format!("Failed to find Chrome Safe Storage: {e}"))
         })?;
 
     Ok(password_data.as_ref().to_vec())
@@ -71,7 +75,7 @@ fn get_password_from_cli() -> Result<Vec<u8>> {
         ])
         .output()
         .map_err(|e| {
-            CryptoError::KeychainError(format!("Failed to run security command: {}", e))
+            CryptoError::KeychainError(format!("Failed to run security command: {e}"))
         })?;
 
     if !output.status.success() {
@@ -93,7 +97,7 @@ fn decrypt_aes_cbc(key: &[u8], encrypted: &[u8]) -> Result<String> {
     let decrypted = cipher
         .decrypt_padded_mut::<aes::cipher::block_padding::Pkcs7>(&mut buffer)
         .map_err(|e| {
-            CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {:?}", e))
+            CryptoError::DecryptionFailed(format!("AES-CBC decryption failed: {e:?}"))
         })?;
 
     // Newer Chrome prepends a 32-byte binary header (31 bytes + 0x60 separator)
