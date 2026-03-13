@@ -1,8 +1,8 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use seher::{
-    Agent, AgentLimit, AgentStatus, BrowserDetector, BrowserType, CodexClient, CookieReader,
-    Settings,
+    Agent, AgentConfig, AgentLimit, AgentStatus, BrowserDetector, BrowserType, CodexClient,
+    CookieReader, Settings,
 };
 use std::cmp::Reverse;
 use std::future::Future;
@@ -44,6 +44,10 @@ pub struct Args {
     /// Path to settings file
     #[arg(long, short = 'C')]
     pub config: Option<PathBuf>,
+
+    /// Show priority order for each model level and exit
+    #[arg(long)]
+    pub priority: bool,
 }
 
 /// Normalized result of executing a child agent process.
@@ -109,6 +113,11 @@ pub async fn run(args: Args) {
             return;
         }
     };
+
+    if args.priority {
+        print_priority(&settings);
+        return;
+    }
 
     let detector = BrowserDetector::new();
     let browsers = detector.detect_browsers();
@@ -480,6 +489,72 @@ async fn execute_agent(
     selected_agent.execute(&resolved, &final_args).into()
 }
 
+fn format_priority_entry<W: std::io::Write>(
+    writer: &mut W,
+    rank: usize,
+    config: &AgentConfig,
+    priority: i32,
+) {
+    let provider = config.resolve_provider().unwrap_or("(none)");
+    let env_display = match &config.env {
+        None => String::new(),
+        Some(env) => {
+            let mut keys: Vec<&str> = env.keys().map(|s| s.as_str()).collect();
+            keys.sort();
+            keys.join(", ")
+        }
+    };
+    writeln!(
+        writer,
+        "  {}. [priority={:3}] command={} provider={} env={{{}}}",
+        rank, priority, config.command, provider, env_display
+    )
+    .ok();
+}
+
+fn write_model_section<W: std::io::Write>(
+    writer: &mut W,
+    settings: &Settings,
+    model: Option<&str>,
+) {
+    let mut candidates: Vec<_> = settings
+        .agents
+        .iter()
+        .enumerate()
+        .filter(|(_, config)| {
+            model.is_none_or(|key| config.models.as_ref().is_none_or(|m| m.contains_key(key)))
+        })
+        .map(|(i, config)| (i, config, settings.priority_for(config, model)))
+        .collect();
+    candidates.sort_by_key(|(i, _, priority)| (Reverse(*priority), *i));
+
+    writeln!(writer, "Model: {}", model.unwrap_or("(none)")).ok();
+    for (rank, (_, config, priority)) in candidates.iter().enumerate() {
+        format_priority_entry(writer, rank + 1, config, *priority);
+    }
+    writeln!(writer).ok();
+}
+
+fn write_priority<W: std::io::Write>(writer: &mut W, settings: &Settings) {
+    use std::collections::BTreeSet;
+
+    let model_keys: BTreeSet<String> = settings
+        .agents
+        .iter()
+        .filter_map(|config| config.models.as_ref())
+        .flat_map(|m| m.keys().cloned())
+        .collect();
+
+    for key in &model_keys {
+        write_model_section(writer, settings, Some(key.as_str()));
+    }
+    write_model_section(writer, settings, None);
+}
+
+fn print_priority(settings: &Settings) {
+    write_priority(&mut std::io::stdout(), settings);
+}
+
 async fn sleep_until_reset(reset_time: DateTime<Utc>, quiet: bool) {
     let now = Utc::now();
     if reset_time <= now {
@@ -778,6 +853,139 @@ mod tests {
         .await;
 
         assert_eq!(selected.unwrap()[0].value, valid[0].value);
+    }
+
+    // -----------------------------------------------------------------------
+    // write_priority
+    // -----------------------------------------------------------------------
+
+    fn make_priority_settings() -> Settings {
+        let mut claude_models = HashMap::new();
+        claude_models.insert("high".to_string(), "opus".to_string());
+        claude_models.insert("low".to_string(), "haiku".to_string());
+
+        Settings {
+            priority: vec![
+                PriorityRule {
+                    command: "claude".to_string(),
+                    provider: None,
+                    model: Some("high".to_string()),
+                    priority: 10,
+                },
+                PriorityRule {
+                    command: "codex".to_string(),
+                    provider: None,
+                    model: None,
+                    priority: 50,
+                },
+            ],
+            agents: vec![
+                AgentConfig {
+                    command: "claude".to_string(),
+                    args: vec![],
+                    models: Some(claude_models),
+                    arg_maps: HashMap::new(),
+                    env: Some({
+                        let mut e = HashMap::new();
+                        e.insert("ANTHROPIC_API_KEY".to_string(), "sk-test".to_string());
+                        e
+                    }),
+                    provider: None,
+                },
+                AgentConfig {
+                    command: "codex".to_string(),
+                    args: vec![],
+                    models: None,
+                    arg_maps: HashMap::new(),
+                    env: None,
+                    provider: None,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn write_priority_contains_model_sections() {
+        let settings = make_priority_settings();
+        let mut output = Vec::new();
+        write_priority(&mut output, &settings);
+        let output = String::from_utf8(output).unwrap();
+
+        assert!(
+            output.contains("Model: high"),
+            "should have Model: high section"
+        );
+        assert!(
+            output.contains("Model: low"),
+            "should have Model: low section"
+        );
+        assert!(
+            output.contains("Model: (none)"),
+            "should have Model: (none) section"
+        );
+    }
+
+    #[test]
+    fn write_priority_sorts_by_priority_descending_in_none_section() {
+        let settings = make_priority_settings();
+        let mut output = Vec::new();
+        write_priority(&mut output, &settings);
+        let output = String::from_utf8(output).unwrap();
+
+        // In Model: (none): codex (priority=50) should come before claude (priority=0)
+        let none_start = output.find("Model: (none)").unwrap();
+        let none_section = &output[none_start..];
+        let codex_pos = none_section.find("command=codex").unwrap();
+        let claude_pos = none_section.find("command=claude").unwrap();
+        assert!(
+            codex_pos < claude_pos,
+            "codex (priority=50) should precede claude (priority=0)"
+        );
+    }
+
+    #[test]
+    fn write_priority_includes_passthrough_agent_in_model_sections() {
+        let settings = make_priority_settings();
+        let mut output = Vec::new();
+        write_priority(&mut output, &settings);
+        let output = String::from_utf8(output).unwrap();
+
+        // In Model: high: claude (priority=10) should come before codex (priority=0, pass-through)
+        let high_start = output.find("Model: high").unwrap();
+        let high_end = output[high_start..]
+            .find("\nModel:")
+            .map_or(output.len(), |p| high_start + p);
+        let high_section = &output[high_start..high_end];
+
+        assert!(
+            high_section.contains("command=claude"),
+            "claude should be in Model: high"
+        );
+        assert!(
+            high_section.contains("command=codex"),
+            "codex (pass-through) should be in Model: high"
+        );
+
+        let claude_pos = high_section.find("command=claude").unwrap();
+        let codex_pos = high_section.find("command=codex").unwrap();
+        assert!(
+            claude_pos < codex_pos,
+            "claude (priority=10) should precede codex (priority=0) in high section"
+        );
+    }
+
+    #[test]
+    fn write_priority_formats_env_keys_sorted() {
+        let settings = make_priority_settings();
+        let mut output = Vec::new();
+        write_priority(&mut output, &settings);
+        let output = String::from_utf8(output).unwrap();
+
+        assert!(
+            output.contains("env={ANTHROPIC_API_KEY}"),
+            "should show env key for claude"
+        );
+        assert!(output.contains("env={}"), "should show empty env for codex");
     }
 
     // -----------------------------------------------------------------------
