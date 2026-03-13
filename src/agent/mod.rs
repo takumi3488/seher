@@ -26,6 +26,7 @@ pub struct UsageEntry {
 #[derive(Debug, Serialize)]
 pub struct AgentStatus {
     pub command: String,
+    pub provider: Option<String>,
     pub usage: Vec<UsageEntry>,
 }
 
@@ -97,11 +98,10 @@ impl Agent {
     }
 
     pub async fn fetch_status(&self) -> Result<AgentStatus, Box<dyn std::error::Error>> {
-        match self.config.resolve_domain() {
-            None => Ok(AgentStatus {
-                command: self.config.command.clone(),
-                usage: vec![],
-            }),
+        let command = self.config.command.clone();
+        let provider = self.config.resolve_provider().map(|s| s.to_string());
+        let usage = match self.config.resolve_domain() {
+            None => vec![],
             Some("claude.ai") => {
                 let usage = crate::claude::ClaudeClient::fetch_usage(&self.cookies).await?;
                 let windows = [
@@ -109,7 +109,7 @@ impl Agent {
                     ("seven_day", &usage.seven_day),
                     ("seven_day_sonnet", &usage.seven_day_sonnet),
                 ];
-                let entries = windows
+                windows
                     .into_iter()
                     .filter_map(|(name, w)| {
                         w.as_ref().map(|w| UsageEntry {
@@ -119,30 +119,21 @@ impl Agent {
                             resets_at: w.resets_at,
                         })
                     })
-                    .collect();
-                Ok(AgentStatus {
-                    command: self.config.command.clone(),
-                    usage: entries,
-                })
+                    .collect()
             }
             Some("chatgpt.com") => {
                 let usage = crate::codex::CodexClient::fetch_usage(&self.cookies).await?;
-                let entries = [
+                [
                     ("rate_limit", &usage.rate_limit),
                     ("code_review_rate_limit", &usage.code_review_rate_limit),
                 ]
                 .into_iter()
                 .flat_map(|(prefix, limit)| codex_usage_entries(prefix, limit))
-                .collect();
-
-                Ok(AgentStatus {
-                    command: self.config.command.clone(),
-                    usage: entries,
-                })
+                .collect()
             }
             Some("github.com") => {
                 let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;
-                let entries = vec![
+                vec![
                     UsageEntry {
                         entry_type: "chat_utilization".to_string(),
                         limited: quota.chat_utilization >= 100.0,
@@ -155,14 +146,15 @@ impl Agent {
                         utilization: quota.premium_utilization,
                         resets_at: quota.reset_time,
                     },
-                ];
-                Ok(AgentStatus {
-                    command: self.config.command.clone(),
-                    usage: entries,
-                })
+                ]
             }
-            Some(d) => Err(format!("Unknown domain: {}", d).into()),
-        }
+            Some(d) => return Err(format!("Unknown domain: {}", d).into()),
+        };
+        Ok(AgentStatus {
+            command,
+            provider,
+            usage,
+        })
     }
 
     async fn check_claude_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
