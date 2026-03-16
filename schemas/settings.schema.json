@@ -30,7 +30,7 @@
     "provider": {
       "description": "Provider used for rate-limit tracking. Omit to infer from command, use null to disable provider-based checks, or use any string to override the provider name.",
       "type": ["string", "null"],
-      "examples": ["claude", "codex", "copilot", null]
+      "examples": ["claude", "codex", "copilot", "openrouter", null]
     },
     "agentConfig": {
       "type": "object",
@@ -92,7 +92,22 @@
         },
         "provider": {
           "$ref": "#/$defs/provider"
+        },
+        "openrouter_management_key": {
+          "type": "string",
+          "description": "Management API key for OpenRouter provider. Required when provider is \"openrouter\"."
         }
+      },
+      "if": {
+        "properties": {
+          "provider": {
+            "const": "openrouter"
+          }
+        },
+        "required": ["provider"]
+      },
+      "then": {
+        "required": ["openrouter_management_key"]
       }
     },
     "priorityRule": {

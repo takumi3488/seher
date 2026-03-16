@@ -5,6 +5,7 @@ pub mod codex;
 pub mod config;
 pub mod copilot;
 pub mod crypto;
+pub mod openrouter;
 
 pub use agent::{Agent, AgentLimit, AgentStatus, UsageEntry};
 pub use browser::{BrowserDetector, BrowserType, Cookie, CookieReader, Profile};
