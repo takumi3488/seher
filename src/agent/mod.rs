@@ -88,21 +88,22 @@ impl Agent {
     }
 
     pub async fn check_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
-        match self.config.resolve_domain() {
-            Some("claude.ai") => self.check_claude_limit().await,
-            Some("chatgpt.com") => self.check_codex_limit().await,
-            Some("github.com") => self.check_copilot_limit().await,
+        match self.config.resolve_provider() {
+            Some("claude") => self.check_claude_limit().await,
+            Some("codex") => self.check_codex_limit().await,
+            Some("copilot") => self.check_copilot_limit().await,
+            Some("openrouter") => self.check_openrouter_limit().await,
             None => Ok(AgentLimit::NotLimited),
-            Some(d) => Err(format!("Unknown domain: {}", d).into()),
+            Some(p) => Err(format!("Unknown provider: {}", p).into()),
         }
     }
 
     pub async fn fetch_status(&self) -> Result<AgentStatus, Box<dyn std::error::Error>> {
         let command = self.config.command.clone();
         let provider = self.config.resolve_provider().map(|s| s.to_string());
-        let usage = match self.config.resolve_domain() {
+        let usage = match provider.as_deref() {
             None => vec![],
-            Some("claude.ai") => {
+            Some("claude") => {
                 let usage = crate::claude::ClaudeClient::fetch_usage(&self.cookies).await?;
                 let windows = [
                     ("five_hour", &usage.five_hour),
@@ -121,7 +122,7 @@ impl Agent {
                     })
                     .collect()
             }
-            Some("chatgpt.com") => {
+            Some("codex") => {
                 let usage = crate::codex::CodexClient::fetch_usage(&self.cookies).await?;
                 [
                     ("rate_limit", &usage.rate_limit),
@@ -131,7 +132,7 @@ impl Agent {
                 .flat_map(|(prefix, limit)| codex_usage_entries(prefix, limit))
                 .collect()
             }
-            Some("github.com") => {
+            Some("copilot") => {
                 let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;
                 vec![
                     UsageEntry {
@@ -148,7 +149,18 @@ impl Agent {
                     },
                 ]
             }
-            Some(d) => return Err(format!("Unknown domain: {}", d).into()),
+            Some("openrouter") => {
+                let management_key = self.openrouter_management_key()?;
+                let credits =
+                    crate::openrouter::OpenRouterClient::fetch_credits(management_key).await?;
+                vec![UsageEntry {
+                    entry_type: "credits".to_string(),
+                    limited: credits.data.is_limited(),
+                    utilization: credits.data.utilization(),
+                    resets_at: None,
+                }]
+            }
+            Some(p) => return Err(format!("Unknown provider: {}", p).into()),
         };
         Ok(AgentStatus {
             command,
@@ -189,6 +201,27 @@ impl Agent {
             Ok(AgentLimit::Limited {
                 reset_time: quota.reset_time,
             })
+        } else {
+            Ok(AgentLimit::NotLimited)
+        }
+    }
+
+    fn openrouter_management_key(&self) -> Result<&str, Box<dyn std::error::Error>> {
+        self.config
+            .openrouter_management_key
+            .as_deref()
+            .ok_or_else(|| {
+                "openrouter_management_key is required for OpenRouter provider"
+                    .to_string()
+                    .into()
+            })
+    }
+
+    async fn check_openrouter_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
+        let management_key = self.openrouter_management_key()?;
+        let credits = crate::openrouter::OpenRouterClient::fetch_credits(management_key).await?;
+        if credits.data.is_limited() {
+            Ok(AgentLimit::Limited { reset_time: None })
         } else {
             Ok(AgentLimit::NotLimited)
         }
@@ -293,6 +326,7 @@ mod tests {
                 arg_maps,
                 env: None,
                 provider: None,
+                openrouter_management_key: None,
             },
             vec![],
         )
@@ -405,5 +439,63 @@ mod tests {
         assert!(entries[0].limited);
         assert_eq!(entries[0].utilization, 100.0);
         assert_eq!(entries[0].resets_at, None);
+    }
+
+    // -----------------------------------------------------------------------
+    // OpenRouter dispatch tests
+    // These tests verify that check_limit() / fetch_status() correctly route
+    // to the openrouter handler when provider == "openrouter", and that a
+    // missing management key causes an immediate error (no HTTP call made).
+    // -----------------------------------------------------------------------
+
+    fn make_openrouter_agent(management_key: Option<&str>) -> Agent {
+        Agent::new(
+            AgentConfig {
+                command: "myai".to_string(),
+                args: vec![],
+                models: None,
+                arg_maps: HashMap::new(),
+                env: None,
+                provider: Some(Some("openrouter".to_string())),
+                openrouter_management_key: management_key.map(str::to_string),
+            },
+            vec![],
+        )
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_openrouter_returns_error_when_management_key_is_missing() {
+        // Given: openrouter agent with no management key configured
+        let agent = make_openrouter_agent(None);
+
+        // When: check_limit is called
+        let result = agent.check_limit().await;
+
+        // Then: error mentions the missing key — no HTTP call should be made
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("openrouter_management_key")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_status_openrouter_returns_error_when_management_key_is_missing() {
+        // Given: openrouter agent with no management key configured
+        let agent = make_openrouter_agent(None);
+
+        // When: fetch_status is called
+        let result = agent.fetch_status().await;
+
+        // Then: error mentions the missing key — no HTTP call should be made
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("openrouter_management_key")
+        );
     }
 }

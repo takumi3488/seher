@@ -87,7 +87,7 @@ struct InvocationInput {
 /// Return `true` if an auto-rerun should be triggered.
 ///
 /// Rules:
-/// - Only provider-aware agents (domain != None) trigger auto-rerun.
+/// - Only provider-aware agents (provider != None) trigger auto-rerun.
 /// - Only `Failure` exits trigger auto-rerun (not Success, SpawnError, or SignalTerminated).
 fn should_auto_rerun(exit_kind: &ChildExitKind, agent_is_provider_aware: bool) -> bool {
     matches!(exit_kind, ChildExitKind::Failure { .. }) && agent_is_provider_aware
@@ -432,7 +432,7 @@ async fn execute_with_auto_rerun(
     quiet: bool,
 ) {
     let exit_kind = execute_agent(agents, idx, input, model, quiet).await;
-    let provider_aware = agents[idx].config.resolve_domain().is_some();
+    let provider_aware = agents[idx].config.resolve_provider().is_some();
     if should_auto_rerun(&exit_kind, provider_aware) {
         if !quiet {
             eprintln!("Agent failed, retrying...");
@@ -617,6 +617,7 @@ mod tests {
                 arg_maps: HashMap::new(),
                 env: None,
                 provider: provider.map(|provider| provider.map(str::to_string)),
+                openrouter_management_key: None,
             },
             vec![],
         )
@@ -891,6 +892,7 @@ mod tests {
                         e
                     }),
                     provider: None,
+                    openrouter_management_key: None,
                 },
                 AgentConfig {
                     command: "codex".to_string(),
@@ -899,6 +901,7 @@ mod tests {
                     arg_maps: HashMap::new(),
                     env: None,
                     provider: None,
+                    openrouter_management_key: None,
                 },
             ],
         }

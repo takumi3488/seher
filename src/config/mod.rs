@@ -30,6 +30,8 @@ pub struct AgentConfig {
     pub env: Option<HashMap<String, String>>,
     #[serde(default, deserialize_with = "deserialize_provider")]
     pub provider: Option<Option<String>>,
+    #[serde(default)]
+    pub openrouter_management_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
@@ -101,6 +103,7 @@ impl Default for Settings {
                 arg_maps: HashMap::new(),
                 env: None,
                 provider: None,
+                openrouter_management_key: None,
             }],
         }
     }
@@ -540,5 +543,59 @@ mod tests {
                 "bypassPermissions".to_string(),
             ])
         );
+    }
+
+    #[test]
+    fn test_parse_settings_with_openrouter_management_key() {
+        // Given: agent config with openrouter provider and management key
+        let json = r#"{"agents": [{"command": "myai", "provider": "openrouter", "openrouter_management_key": "sk-or-v1-abc123"}]}"#;
+
+        // When: parsed
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        // Then: key is correctly deserialized
+        assert_eq!(
+            settings.agents[0].openrouter_management_key.as_deref(),
+            Some("sk-or-v1-abc123")
+        );
+    }
+
+    #[test]
+    fn test_openrouter_management_key_defaults_to_none_when_absent() {
+        // Given: agent config without openrouter_management_key field
+        let json = r#"{"agents": [{"command": "claude"}]}"#;
+
+        // When: parsed
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        // Then: key defaults to None
+        assert!(settings.agents[0].openrouter_management_key.is_none());
+    }
+
+    #[test]
+    fn test_openrouter_provider_resolves_provider_but_not_domain() {
+        // Given: agent with explicit "openrouter" provider (no cookie-based auth)
+        let json = r#"{"agents": [{"command": "myai", "provider": "openrouter", "openrouter_management_key": "sk-or-v1-abc123"}]}"#;
+
+        // When: provider and domain resolved
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        // Then: provider resolves to "openrouter" but domain is None
+        // (OpenRouter does not use browser cookies)
+        assert_eq!(settings.agents[0].resolve_provider(), Some("openrouter"));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+    }
+
+    #[test]
+    fn test_openrouter_management_key_is_ignored_for_other_providers() {
+        // Given: claude agent config that happens to have openrouter_management_key set
+        let json = r#"{"agents": [{"command": "claude", "openrouter_management_key": "sk-or-v1-abc123"}]}"#;
+
+        // When: parsed
+        let settings: Settings = serde_json::from_str(json).unwrap();
+
+        // Then: provider resolution is unaffected by the presence of openrouter_management_key
+        assert_eq!(settings.agents[0].resolve_provider(), Some("claude"));
+        assert_eq!(settings.agents[0].resolve_domain(), Some("claude.ai"));
     }
 }
