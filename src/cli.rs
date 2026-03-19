@@ -30,11 +30,11 @@ pub struct Args {
     pub profile: Option<String>,
 
     /// Filter agents by command name
-    #[arg(long, short = 'c')]
+    #[arg(long)]
     pub command: Option<String>,
 
     /// Filter agents by provider name (resolved)
-    #[arg(long, short = 'p')]
+    #[arg(long)]
     pub provider: Option<String>,
 
     /// Additional arguments to pass to the agent command
