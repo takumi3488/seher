@@ -16,7 +16,10 @@ use zzsleep::sleep_until;
     version,
     about = "CLI tool for Claude.ai, Codex, and Copilot rate limit monitoring"
 )]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "CLI flags map naturally to bools"
+)]
 pub struct Args {
     /// Browser to use (chrome, edge, brave, firefox, safari, etc.)
     #[arg(long, short)]

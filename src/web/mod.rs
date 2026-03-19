@@ -13,6 +13,7 @@ use axum::{
     routing::{get, post},
 };
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
@@ -82,7 +83,7 @@ fn percent_encode_query(s: &str) -> String {
                 result.push(byte as char);
             }
             b => {
-                result.push_str(&format!("%{b:02X}"));
+                let _ = write!(result, "%{b:02X}");
             }
         }
     }
@@ -206,8 +207,15 @@ fn render_agent_row(
     settings: &Settings,
     model_keys: &[String],
 ) -> String {
-    let AgentDisplay { command, provider, args, models_str, env_str, pre_cmd, arg_maps_str } =
-        AgentDisplay::new(agent);
+    let AgentDisplay {
+        command,
+        provider,
+        args,
+        models_str,
+        env_str,
+        pre_cmd,
+        arg_maps_str,
+    } = AgentDisplay::new(agent);
 
     let priority_cells: String = model_keys
         .iter()
@@ -241,23 +249,24 @@ fn render_edit_row(
     settings: &Settings,
     model_keys: &[String],
 ) -> String {
-    let AgentDisplay { command, provider, args, models_str, env_str, pre_cmd, arg_maps_str } =
-        AgentDisplay::new(agent);
+    let AgentDisplay {
+        command,
+        provider,
+        args,
+        models_str,
+        env_str,
+        pre_cmd,
+        arg_maps_str,
+    } = AgentDisplay::new(agent);
 
     let priority_inputs: String = model_keys
         .iter()
         .map(|mk| match priority_value(settings, agent, mk) {
             None => r#"<td class="unavail">-</td>"#.to_string(),
             Some(p) => {
-                let p_str = if p == 0 {
-                    String::new()
-                } else {
-                    p.to_string()
-                };
+                let p_str = if p == 0 { String::new() } else { p.to_string() };
                 let safe_mk = escape_html(mk);
-                format!(
-                    "<td><input name=\"p_{safe_mk}\" value=\"{p_str}\" placeholder=\"0\"></td>"
-                )
+                format!("<td><input name=\"p_{safe_mk}\" value=\"{p_str}\" placeholder=\"0\"></td>")
             }
         })
         .collect();
@@ -290,13 +299,20 @@ fn render_tbody(settings: &Settings, model_keys: &[String]) -> String {
         .join("\n")
 }
 
-#[allow(clippy::format_collect)]
+#[expect(
+    clippy::format_collect,
+    reason = "collecting formatted strings is intentional here"
+)]
 fn render_thead_model_cols(model_keys: &[String], sort_by: Option<&str>) -> String {
     model_keys
         .iter()
         .map(|mk| {
             let is_sorted = sort_by == Some(mk.as_str());
-            let class = if is_sorted { r#" class="th-sorted""# } else { "" };
+            let class = if is_sorted {
+                r#" class="th-sorted""#
+            } else {
+                ""
+            };
             let marker = if is_sorted { " ↓" } else { "" };
             let encoded_mk = percent_encode_query(mk);
             let escaped_mk = escape_html(mk);
@@ -305,6 +321,10 @@ fn render_thead_model_cols(model_keys: &[String], sort_by: Option<&str>) -> Stri
         .collect()
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "single-function HTML template, splitting would harm readability"
+)]
 fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<&str>) -> String {
     let mut indexed: Vec<(usize, &AgentConfig)> = settings.agents.iter().enumerate().collect();
     if let Some(sk) = sort_by {

@@ -53,12 +53,18 @@ where
     Ok(Some(config))
 }
 
-#[allow(clippy::ref_option)] // &Option<T> is required by serde skip_serializing_if
+#[expect(
+    clippy::ref_option,
+    reason = "&Option<T> is required by serde skip_serializing_if"
+)]
 fn is_inferred_or_absent_provider(value: &Option<ProviderConfig>) -> bool {
     matches!(value, Option::None | Some(ProviderConfig::Inferred))
 }
 
-#[allow(clippy::ref_option)] // &Option<T> is required by serde serialize_with
+#[expect(
+    clippy::ref_option,
+    reason = "&Option<T> is required by serde serialize_with"
+)]
 fn serialize_provider_config<S>(
     value: &Option<ProviderConfig>,
     serializer: S,
@@ -68,8 +74,7 @@ where
 {
     match value {
         Some(ProviderConfig::Explicit(s)) => serializer.serialize_str(s),
-        Option::None
-        | Some(ProviderConfig::Inferred | ProviderConfig::None) => {
+        Option::None | Some(ProviderConfig::Inferred | ProviderConfig::None) => {
             serializer.serialize_none()
         }
     }
