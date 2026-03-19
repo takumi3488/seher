@@ -477,7 +477,7 @@ fn execute_agent(
                 Ok(prompt) => input.cached_prompt = Some(prompt),
                 Err(e) => {
                     eprintln!("Editor error: {e}");
-                    // SpawnError prevents auto-rerun, which is correct — the agent was never started.
+                    // SpawnError prevents auto-rerun, which is correct -- the agent was never started.
                     return ChildExitKind::SpawnError;
                 }
             }
@@ -1078,13 +1078,13 @@ mod tests {
     fn child_exit_kind_from_returns_signal_terminated_for_signal_killed_process() -> TestResult {
         // Given: a process terminated by SIGKILL (Unix signal)
         // When:  converting to ChildExitKind
-        // Then:  returns SignalTerminated (signal termination ≠ voluntary non-zero exit)
+        // Then:  returns SignalTerminated (signal termination != voluntary non-zero exit)
         use std::os::unix::process::ExitStatusExt;
         // Spawn a long-running process and kill it with SIGKILL
         let mut child = std::process::Command::new("sleep").arg("60").spawn()?;
         child.kill()?;
         let status = child.wait()?;
-        // SIGKILL (signal 9) → signal() returns Some(9), code() returns None
+        // SIGKILL (signal 9) -> signal() returns Some(9), code() returns None
         assert!(status.signal().is_some());
         assert_eq!(
             ChildExitKind::from(Ok(status)),

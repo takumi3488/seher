@@ -20,7 +20,7 @@ use tokio::net::TcpListener;
 
 use crate::config::{AgentConfig, ProviderConfig, Settings};
 
-// ── shared state ──────────────────────────────────────────────────────────────
+// -- shared state --------------------------------------------------------------
 
 struct AppState {
     settings: Mutex<Settings>,
@@ -39,7 +39,7 @@ fn lock_settings(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// -- helpers -------------------------------------------------------------------
 
 /// Union of all models-map keys across agents, sorted, with "(none)" appended.
 fn collect_model_keys(settings: &Settings) -> Vec<String> {
@@ -61,7 +61,7 @@ fn collect_model_keys(settings: &Settings) -> Vec<String> {
     result
 }
 
-/// Priority of agent×model. Returns `None` when the model is unavailable.
+/// Priority of agent x model. Returns `None` when the model is unavailable.
 fn priority_value(settings: &Settings, agent: &AgentConfig, model_key: &str) -> Option<i32> {
     if model_key == "(none)" {
         return Some(settings.priority_for(agent, None));
@@ -124,7 +124,7 @@ fn provider_display(agent: &AgentConfig) -> String {
     }
 }
 
-// ── form parsers ──────────────────────────────────────────────────────────────
+// -- form parsers --------------------------------------------------------------
 
 fn parse_vec(s: &str) -> Vec<String> {
     s.lines()
@@ -169,7 +169,7 @@ fn parse_provider(s: &str) -> Option<ProviderConfig> {
     }
 }
 
-// ── HTML rendering ─────────────────────────────────────────────────────────────
+// -- HTML rendering ------------------------------------------------------------
 
 struct AgentDisplay {
     command: String,
@@ -220,7 +220,7 @@ fn render_agent_row(
     let priority_cells: String = model_keys
         .iter()
         .map(|mk| match priority_value(settings, agent, mk) {
-            None => r#"<td class="unavail">—</td>"#.to_string(),
+            None => r#"<td class="unavail">-</td>"#.to_string(),
             Some(p) => format!(r#"<td class="prio">{p}</td>"#),
         })
         .collect();
@@ -313,7 +313,7 @@ fn render_thead_model_cols(model_keys: &[String], sort_by: Option<&str>) -> Stri
             } else {
                 ""
             };
-            let marker = if is_sorted { " ↓" } else { "" };
+            let marker = if is_sorted { " v" } else { "" };
             let encoded_mk = percent_encode_query(mk);
             let escaped_mk = escape_html(mk);
             format!("<th{class}><a href=\"/?sort={encoded_mk}\">{escaped_mk}{marker}</a></th>")
@@ -382,7 +382,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
       overflow-x: auto;
     }}
 
-    /* ── Header ─────────────────────────────────────────── */
+    /* -- Header -------------------------------------------------- */
     .header {{
       position: sticky; top: 0; z-index: 50;
       background: rgba(6,11,20,.9);
@@ -418,7 +418,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
       align-items: center; gap: .75rem;
     }}
 
-    /* ── Buttons ─────────────────────────────────────────── */
+    /* -- Buttons ------------------------------------------------- */
     button {{
       cursor: pointer;
       font-family: 'Outfit', sans-serif; font-weight: 500;
@@ -470,7 +470,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     }}
     .btn-add:hover {{ background: var(--amber-d); border-color: var(--amber); }}
 
-    /* ── Status badge ─────────────────────────────────────── */
+    /* -- Status badge -------------------------------------------- */
     #status {{
       display: inline-flex; align-items: center; gap: .35rem;
       padding: .28rem .72rem;
@@ -482,14 +482,14 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     }}
     #status.show {{ opacity: 1; }}
 
-    /* ── Layout ───────────────────────────────────────────── */
+    /* -- Layout -------------------------------------------------- */
     .main {{ padding: 1.25rem 1.5rem; flex: 1; min-width: 0; }}
     .table-wrap {{
       border: 1px solid var(--bd); border-radius: 8px;
       overflow: auto; background: var(--s0);
     }}
 
-    /* ── Table ────────────────────────────────────────────── */
+    /* -- Table --------------------------------------------------- */
     table {{ width: 100%; border-collapse: collapse; font-size: .77rem; }}
     thead {{
       background: var(--s2);
@@ -531,7 +531,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     td.actions {{ white-space: nowrap; }}
     .actions-wrap {{ display: flex; gap: .35rem; align-items: center; }}
 
-    /* ── Content cells ───────────────────────────────────── */
+    /* -- Content cells ------------------------------------------- */
     pre {{
       margin: 0; white-space: pre-wrap; word-break: break-all;
       font-family: 'Fira Code', monospace; font-size: .7rem;
@@ -548,7 +548,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
       font-family: 'Fira Code', monospace; font-size: .7rem; color: var(--t0);
     }}
 
-    /* ── Inputs ─────────────────────────────────────────── */
+    /* -- Inputs -------------------------------------------------- */
     input, textarea {{
       background: var(--bg); border: 1px solid var(--bd);
       border-radius: 4px; color: var(--t1);
@@ -565,10 +565,10 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     input[name^="p_"] {{ width: 56px; text-align: center; }}
     textarea {{ min-width: 110px; }}
 
-    /* ── Footer ──────────────────────────────────────────── */
+    /* -- Footer -------------------------------------------------- */
     .footer {{ padding: .9rem 1.5rem; border-top: 1px solid var(--bd); }}
 
-    /* ── Scrollbar ───────────────────────────────────────── */
+    /* -- Scrollbar ----------------------------------------------- */
     ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
     ::-webkit-scrollbar-track {{ background: var(--bg); }}
     ::-webkit-scrollbar-thumb {{ background: var(--bd2); border-radius: 3px; }}
@@ -584,7 +584,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     <span class="logo-sep">/</span>
     <span class="header-label">Config Editor</span>
     <div class="header-right">
-      <span id="status">Saved ✓</span>
+      <span id="status">Saved &#10003;</span>
       <button class="btn-primary"
               hx-post="/save"
               hx-target="#status"
@@ -626,7 +626,7 @@ fn render_full_page(settings: &Settings, model_keys: &[String], sort_by: Option<
     )
 }
 
-// ── handlers ──────────────────────────────────────────────────────────────────
+// -- handlers ------------------------------------------------------------------
 
 async fn index_handler(
     State(state): State<SharedState>,
@@ -696,7 +696,7 @@ async fn update_agent_handler(
         agent.arg_maps = arg_maps;
     }
 
-    // Process priority fields: "p_{model_key}" → update PriorityRules
+    // Process priority fields: "p_{model_key}" -> update PriorityRules
     let agent_command = settings.agents[idx].command.clone();
     let agent_provider = settings.agents[idx].provider.clone();
 
@@ -763,7 +763,7 @@ async fn save_handler(State(state): State<SharedState>) -> HandlerResult {
     Ok(Html("Saved &#10003;".to_string()))
 }
 
-// ── entry point ───────────────────────────────────────────────────────────────
+// -- entry point ---------------------------------------------------------------
 
 /// Start the config editor web server, open the browser, and block until Ctrl+C.
 ///

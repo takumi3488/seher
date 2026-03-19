@@ -60,8 +60,8 @@ pub fn decrypt_cookie_value(encrypted_value: &[u8]) -> Result<String> {
 /// Strip Chrome's cookie value format prefix (Chrome 130+).
 ///
 /// Chrome stores cookie values with a prefix indicating the format:
-/// - `[digit]t` prefix: plaintext value (e.g. "0tyes" → "yes")
-/// - `[digit]e`` prefix: encoded value (e.g. "1e`token" → "token")
+/// - `[digit]t` prefix: plaintext value (e.g. "0tyes" -> "yes")
+/// - `[digit]e`` prefix: encoded value (e.g. "1e`token" -> "token")
 fn strip_chrome_value_prefix(value: &str) -> String {
     let bytes = value.as_bytes();
     if bytes.len() >= 2 && bytes[0].is_ascii_digit() {

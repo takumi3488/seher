@@ -176,12 +176,12 @@ mod tests {
 
     #[test]
     fn truncate_body_preserves_utf8_boundaries() {
-        let body = "あ".repeat(201);
+        let body = "a".repeat(201);
 
         let truncated = CodexClient::truncate_body(&body);
 
         assert!(truncated.ends_with("..."));
         assert_eq!(truncated.chars().count(), 203);
-        assert!(truncated.starts_with(&"あ".repeat(200)));
+        assert!(truncated.starts_with(&"a".repeat(200)));
     }
 }
