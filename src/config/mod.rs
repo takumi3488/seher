@@ -10,9 +10,9 @@ pub struct Settings {
 }
 
 /// Represents the three possible states of the `provider` field:
-/// - `Inferred`: field absent → provider is inferred from the command name
-/// - `Explicit(name)`: field has a string value → use that provider name
-/// - `None`: field is `null` → no provider (fallback agent)
+/// - `Inferred`: field absent -> provider is inferred from the command name
+/// - `Explicit(name)`: field has a string value -> use that provider name
+/// - `None`: field is `null` -> no provider (fallback agent)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderConfig {
     Inferred,
@@ -410,7 +410,7 @@ mod tests {
             ])
         );
 
-        // no provider field → None (inferred from command name)
+        // no provider field -> None (inferred from command name)
         assert!(claude.provider.is_none());
         assert_eq!(claude.resolve_domain(), Some("claude.ai"));
         Ok(())
@@ -434,7 +434,7 @@ mod tests {
             Some("github-copilot/claude-haiku-4.5")
         );
 
-        // provider: "copilot" → Some(Explicit("copilot"))
+        // provider: "copilot" -> Some(Explicit("copilot"))
         assert_eq!(
             opencode.provider,
             Some(ProviderConfig::Explicit("copilot".to_string()))
@@ -450,7 +450,7 @@ mod tests {
         let fallback = &settings.agents[3];
         assert_eq!(fallback.command, "claude");
 
-        // provider: null → Some(ProviderConfig::None) (fallback)
+        // provider: null -> Some(ProviderConfig::None) (fallback)
         assert_eq!(fallback.provider, Some(ProviderConfig::None));
         assert_eq!(fallback.resolve_domain(), None);
         Ok(())
@@ -794,7 +794,7 @@ mod tests {
         Ok(())
     }
 
-    // ── Serialize tests ──────────────────────────────────────────────────────
+    // -- Serialize tests ------------------------------------------------------
 
     #[test]
     fn test_serialize_roundtrip_sample_settings() -> TestResult {

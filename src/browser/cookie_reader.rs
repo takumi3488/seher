@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, CookieReaderError>;
 /// Clamp a finite `f64` to a safe subrange of `i64`, then convert via string.
 ///
 /// Safari cookie expiry values are seconds since 2001-01-01, on the order of
-/// 1e9. We cap at ±1e15 (well within `i64`) and convert via string parse to
+/// 1e9. We cap at +/-1e15 (well within `i64`) and convert via string parse to
 /// avoid any integer-cast lints.
 fn f64_to_i64_saturating(v: f64) -> i64 {
     const MAX: f64 = 1_000_000_000_000_000_f64; // 1e15, well within i64 and f64 precision

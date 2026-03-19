@@ -269,7 +269,7 @@ impl Agent {
     #[must_use]
     pub fn has_model(&self, model_key: &str) -> bool {
         match &self.config.models {
-            None => true, // no models map → pass-through, accepts any model key
+            None => true, // no models map -> pass-through, accepts any model key
             Some(m) => m.contains_key(model_key),
         }
     }
@@ -529,7 +529,7 @@ mod tests {
         // When: check_limit is called
         let result = agent.check_limit().await;
 
-        // Then: error mentions the missing key — no HTTP call should be made
+        // Then: error mentions the missing key -- no HTTP call should be made
         let err_msg = result.err().ok_or("expected Err")?.to_string();
         assert!(err_msg.contains("openrouter_management_key"));
         Ok(())
@@ -543,7 +543,7 @@ mod tests {
         // When: fetch_status is called
         let result = agent.fetch_status().await;
 
-        // Then: error mentions the missing key — no HTTP call should be made
+        // Then: error mentions the missing key -- no HTTP call should be made
         let err_msg = result.err().ok_or("expected Err")?.to_string();
         assert!(err_msg.contains("openrouter_management_key"));
         Ok(())

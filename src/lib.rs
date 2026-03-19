@@ -9,7 +9,7 @@ pub mod config;
 #[cfg(feature = "browser")]
 pub mod crypto;
 
-// 常に利用可能（ライブラリとしての公開API）
+// Always available (public API as a library)
 pub mod claude;
 pub mod copilot;
 pub mod openrouter;
