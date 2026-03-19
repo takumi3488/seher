@@ -16,6 +16,10 @@ use zzsleep::sleep_until;
     version,
     about = "CLI tool for Claude.ai, Codex, and Copilot rate limit monitoring"
 )]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "CLI flags map naturally to bools"
+)]
 pub struct Args {
     /// Browser to use (chrome, edge, brave, firefox, safari, etc.)
     #[arg(long, short)]
@@ -48,6 +52,10 @@ pub struct Args {
     /// Show priority order for each model level and exit
     #[arg(long)]
     pub priority: bool,
+
+    /// Open the web-based config editor and exit when the server stops
+    #[arg(long)]
+    pub gui_config: bool,
 }
 
 /// Normalized result of executing a child agent process.
@@ -116,6 +124,13 @@ pub async fn run(args: Args) {
 
     if args.priority {
         print_priority(&settings);
+        return;
+    }
+
+    if args.gui_config {
+        if let Err(e) = seher::web::serve(settings, args.config).await {
+            eprintln!("Config editor error: {e}");
+        }
         return;
     }
 
