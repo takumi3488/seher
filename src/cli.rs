@@ -29,10 +29,6 @@ pub struct Args {
     #[arg(long)]
     pub profile: Option<String>,
 
-    /// Additional arguments to pass to the agent command
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub extra: Vec<String>,
-
     /// Filter agents by command name
     #[arg(long, short = 'c')]
     pub command: Option<String>,
@@ -40,6 +36,10 @@ pub struct Args {
     /// Filter agents by provider name (resolved)
     #[arg(long, short = 'p')]
     pub provider: Option<String>,
+
+    /// Additional arguments to pass to the agent command
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub extra: Vec<String>,
 
     /// Model level to use (e.g. "high", "low"), resolved via agent's models map
     #[arg(long, short)]
