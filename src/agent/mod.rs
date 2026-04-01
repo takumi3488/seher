@@ -175,9 +175,7 @@ impl Agent {
                             entry_type: l.limit_type.clone(),
                             limited: l.percentage >= 100,
                             utilization: f64::from(l.percentage),
-                            resets_at: l
-                                .next_reset_time
-                                .and_then(|ms| DateTime::from_timestamp_millis(ms)),
+                            resets_at: l.next_reset_time.and_then(DateTime::from_timestamp_millis),
                         })
                         .collect(),
                     None => vec![],
@@ -264,7 +262,7 @@ impl Agent {
                     .limits
                     .iter()
                     .filter_map(|l| l.next_reset_time)
-                    .filter_map(|ms| DateTime::from_timestamp_millis(ms))
+                    .filter_map(DateTime::from_timestamp_millis)
                     .max();
                 Ok(AgentLimit::Limited { reset_time })
             }
