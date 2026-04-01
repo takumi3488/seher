@@ -1,7 +1,7 @@
 # Seher
 
 
-Seher is a CLI tool that waits for an agent's Rate Limit to reset, then executes a specified prompt using Claude Code, Codex, OpenRouter, or other compatible CLIs.
+Seher is a CLI tool that waits for an agent's Rate Limit to reset, then executes a specified prompt using Claude Code, Codex, OpenRouter, GLM (Zhipu AI), or other compatible CLIs.
 
 
 ## How it works
@@ -10,6 +10,8 @@ Seher is a CLI tool that waits for an agent's Rate Limit to reset, then executes
 By default, it retrieves Chrome's cookie information and uses it to call Claude's API to get the Rate Limit reset time. The browser and profile from which cookies are retrieved can be changed with options.
 
 For OpenRouter, seher authenticates with a Management API Key (no browser cookies required) and tracks the credit balance via the OpenRouter Management API. When `total_usage >= total_credits`, the agent is considered rate-limited.
+
+For GLM (Zhipu AI), seher authenticates with a `glm_api_key` (no browser cookies required) and tracks quota usage via the Zhipu AI quota monitoring API. The agent is considered rate-limited when any quota limit reaches 100% utilization.
 
 
 ## Supported Browsers
@@ -112,6 +114,7 @@ You can customize seher's behavior by creating `~/.config/seher/settings.json` o
 | `agents[].env` | object or null | Environment variables to set when running the agent (optional) |
 | `agents[].provider` | string or null | Rate limit provider override (optional, see below) |
 | `agents[].openrouter_management_key` | string | Management API key for OpenRouter (required when `provider` is `"openrouter"`) |
+| `agents[].glm_api_key` | string | API key for GLM (Zhipu AI) provider (required when `provider` is `"glm"`) |
 
 
 ### JSON Schema
@@ -208,7 +211,7 @@ The `{model}` placeholder in `args` is resolved based on the value passed to `--
 
 `priority` matches the combination of `command`, resolved `provider`, and `--model` key. If a rule's `provider` is omitted, it is inferred from `command` using the same logic as agents (`claude` → `claude`, `codex` → `codex`, `copilot` → `copilot`). Setting `provider` to `null` matches fallback agents. When multiple agents are not rate-limited, seher selects the one with the highest `priority`; if priorities are equal, the earlier entry in `agents` wins.
 
-The `provider` field controls rate limit tracking. If omitted, the provider is inferred from the command name (`claude` → claude.ai, `codex` → chatgpt.com, `copilot` → github.com). Setting it to `null` disables rate limit checking for that agent. Setting it to a string (e.g. `"codex"`, `"copilot"`, or `"openrouter"`) uses that provider's rate limit regardless of the command name.
+The `provider` field controls rate limit tracking. If omitted, the provider is inferred from the command name (`claude` → claude.ai, `codex` → chatgpt.com, `copilot` → github.com). Setting it to `null` disables rate limit checking for that agent. Setting it to a string (e.g. `"codex"`, `"copilot"`, `"openrouter"`, or `"glm"`) uses that provider's rate limit regardless of the command name.
 
 For Codex, seher reads `chatgpt.com` browser cookies, fetches an access token from `https://chatgpt.com/api/auth/session`, and then calls `https://chatgpt.com/backend-api/wham/usage`. The request intentionally keeps headers minimal and does not require hard-coding a bearer token in your config.
 
@@ -221,6 +224,24 @@ For OpenRouter, seher does not read browser cookies. Instead, it uses the `openr
       "command": "myai",
       "provider": "openrouter",
       "openrouter_management_key": "sk-or-v1-your-key-here"
+    }
+  ]
+}
+```
+
+For GLM (Zhipu AI), seher uses the `glm_api_key` to authenticate with the Zhipu AI quota API. No browser cookies are required. The `glm_api_key` field is required when `provider` is `"glm"`.
+
+```json
+{
+  "agents": [
+    {
+      "command": "claude",
+      "provider": "glm",
+      "glm_api_key": "your-glm-api-key-here",
+      "args": ["--model", "{model}"],
+      "models": {
+        "high": "glm-4-plus"
+      }
     }
   ]
 }
