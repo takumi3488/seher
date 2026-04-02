@@ -132,6 +132,10 @@ fn command_to_provider(command: &str) -> Option<&str> {
         "codex" => Some("codex"),
         "copilot" => Some("copilot"),
         "glm" => Some("glm"),
+        "zai" => Some("zai"),
+        "kimi-k2" => Some("kimi-k2"),
+        "warp" => Some("warp"),
+        "kiro" => Some("kiro"),
         _ => None,
     }
 }
@@ -1343,5 +1347,45 @@ mod tests {
             serde_value_to_cst_input(&serde_json::json!({})),
             CstInputValue::Object(v) if v.is_empty()
         ));
+    }
+
+    #[test]
+    fn test_command_zai_infers_provider_zai() -> TestResult {
+        let json = r#"{"agents": [{"command": "zai"}]}"#;
+        let settings: Settings = serde_json::from_str(json)?;
+
+        assert_eq!(settings.agents[0].resolve_provider(), Some("zai"));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_command_kimik2_infers_provider_kimik2() -> TestResult {
+        let json = r#"{"agents": [{"command": "kimi-k2"}]}"#;
+        let settings: Settings = serde_json::from_str(json)?;
+
+        assert_eq!(settings.agents[0].resolve_provider(), Some("kimi-k2"));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_command_warp_infers_provider_warp() -> TestResult {
+        let json = r#"{"agents": [{"command": "warp"}]}"#;
+        let settings: Settings = serde_json::from_str(json)?;
+
+        assert_eq!(settings.agents[0].resolve_provider(), Some("warp"));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_command_kiro_infers_provider_kiro() -> TestResult {
+        let json = r#"{"agents": [{"command": "kiro"}]}"#;
+        let settings: Settings = serde_json::from_str(json)?;
+
+        assert_eq!(settings.agents[0].resolve_provider(), Some("kiro"));
+        assert_eq!(settings.agents[0].resolve_domain(), None);
+        Ok(())
     }
 }
