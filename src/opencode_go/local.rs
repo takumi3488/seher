@@ -282,10 +282,12 @@ mod tests {
         assert_eq!(snapshot.total_messages, 0);
         assert_eq!(snapshot.windows.len(), 3);
         assert!(snapshot.windows.iter().all(|window| !window.is_limited()));
-        assert!(snapshot
-            .windows
-            .iter()
-            .all(|window| window.spent_usd == 0.0));
+        assert!(
+            snapshot
+                .windows
+                .iter()
+                .all(|window| window.spent_usd == 0.0)
+        );
     }
 
     #[test]
