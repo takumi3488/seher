@@ -13,8 +13,12 @@ pub mod crypto;
 pub mod claude;
 pub mod copilot;
 pub mod glm;
+pub mod kimik2;
+pub mod kiro;
 pub mod openrouter;
+pub mod warp;
 pub mod web;
+pub mod zai;
 
 #[cfg(feature = "browser")]
 pub use agent::{Agent, AgentLimit, AgentStatus, UsageEntry};

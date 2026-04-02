@@ -100,6 +100,10 @@ impl Agent {
             Some("copilot") => self.check_copilot_limit().await,
             Some("openrouter") => self.check_openrouter_limit().await,
             Some("glm") => self.check_glm_limit().await,
+            Some("zai") => self.check_zai_limit().await,
+            Some("kimi-k2") => self.check_kimik2_limit().await,
+            Some("warp") => self.check_warp_limit().await,
+            Some("kiro") => self.check_kiro_limit().await,
             None => Ok(AgentLimit::NotLimited),
             Some(p) => Err(format!("Unknown provider: {p}").into()),
         }
@@ -108,6 +112,7 @@ impl Agent {
     /// # Errors
     ///
     /// Returns an error if fetching usage from the provider API fails or the domain is unknown.
+    #[expect(clippy::too_many_lines)]
     pub async fn fetch_status(&self) -> Result<AgentStatus, Box<dyn std::error::Error>> {
         let command = self.config.command.clone();
         let provider = self.config.resolve_provider().map(ToString::to_string);
@@ -180,6 +185,55 @@ impl Agent {
                         .collect(),
                     None => vec![],
                 }
+            }
+            Some("zai") => {
+                let api_key = self.resolve_env_key("Z_AI_API_KEY")?;
+                let quota_url = self.resolve_optional_env("Z_AI_QUOTA_URL");
+                let quota =
+                    crate::zai::ZaiClient::fetch_quota(&api_key, quota_url.as_deref()).await?;
+                match quota.data {
+                    Some(data) => data
+                        .limits
+                        .iter()
+                        .map(|l| UsageEntry {
+                            entry_type: l.limit_type.clone(),
+                            limited: l.percentage >= 100,
+                            utilization: f64::from(l.percentage),
+                            resets_at: l.next_reset_time.and_then(DateTime::from_timestamp_millis),
+                        })
+                        .collect(),
+                    None => vec![],
+                }
+            }
+            Some("kimi-k2") => {
+                let api_key = self.resolve_env_key("KIMI_K2_API_KEY")?;
+                let credits = crate::kimik2::KimiK2Client::fetch_credits(&api_key).await?;
+                vec![UsageEntry {
+                    entry_type: "credits".to_string(),
+                    limited: credits.is_limited(),
+                    utilization: credits.utilization(),
+                    resets_at: None,
+                }]
+            }
+            Some("warp") => {
+                let api_key = self.resolve_env_key("WARP_API_KEY")?;
+                let info = crate::warp::WarpClient::fetch_limit_info(&api_key).await?;
+                let limit_info = &info.data.get_request_limit_info;
+                vec![UsageEntry {
+                    entry_type: "requests".to_string(),
+                    limited: limit_info.is_limited(),
+                    utilization: limit_info.utilization(),
+                    resets_at: Self::reset_time_from_seconds(limit_info.reset_in_seconds),
+                }]
+            }
+            Some("kiro") => {
+                let info = crate::kiro::KiroClient::fetch_usage().await?;
+                vec![UsageEntry {
+                    entry_type: "requests".to_string(),
+                    limited: info.is_limited(),
+                    utilization: info.utilization(),
+                    resets_at: Self::reset_time_from_seconds(info.reset_in_seconds),
+                }]
             }
             Some(p) => return Err(format!("Unknown provider: {p}").into()),
         };
@@ -267,6 +321,84 @@ impl Agent {
                 Ok(AgentLimit::Limited { reset_time })
             }
             _ => Ok(AgentLimit::NotLimited),
+        }
+    }
+
+    fn reset_time_from_seconds(secs: Option<i64>) -> Option<DateTime<Utc>> {
+        secs.and_then(|s| Utc::now().checked_add_signed(chrono::Duration::seconds(s)))
+    }
+
+    fn resolve_env_key(&self, key: &str) -> Result<String, Box<dyn std::error::Error>> {
+        // 1. Check agent config env
+        if let Some(env) = &self.config.env
+            && let Some(val) = env.get(key)
+        {
+            return Ok(val.clone());
+        }
+        // 2. Check process environment
+        if let Ok(val) = std::env::var(key) {
+            return Ok(val);
+        }
+        Err(format!("{key} is required for this provider").into())
+    }
+
+    fn resolve_optional_env(&self, key: &str) -> Option<String> {
+        self.config
+            .env
+            .as_ref()
+            .and_then(|env| env.get(key).cloned())
+            .or_else(|| std::env::var(key).ok())
+    }
+
+    async fn check_zai_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
+        let api_key = self.resolve_env_key("Z_AI_API_KEY")?;
+        let quota_url = self.resolve_optional_env("Z_AI_QUOTA_URL");
+        let quota = crate::zai::ZaiClient::fetch_quota(&api_key, quota_url.as_deref()).await?;
+        match quota.data {
+            Some(data) if data.is_limited() => {
+                let reset_time = data
+                    .limits
+                    .iter()
+                    .filter_map(|l| l.next_reset_time)
+                    .filter_map(DateTime::from_timestamp_millis)
+                    .max();
+                Ok(AgentLimit::Limited { reset_time })
+            }
+            _ => Ok(AgentLimit::NotLimited),
+        }
+    }
+
+    async fn check_kimik2_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
+        let api_key = self.resolve_env_key("KIMI_K2_API_KEY")?;
+        let credits = crate::kimik2::KimiK2Client::fetch_credits(&api_key).await?;
+        if credits.is_limited() {
+            Ok(AgentLimit::Limited { reset_time: None })
+        } else {
+            Ok(AgentLimit::NotLimited)
+        }
+    }
+
+    async fn check_warp_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
+        let api_key = self.resolve_env_key("WARP_API_KEY")?;
+        let info = crate::warp::WarpClient::fetch_limit_info(&api_key).await?;
+        let limit_info = &info.data.get_request_limit_info;
+        if limit_info.is_limited() {
+            Ok(AgentLimit::Limited {
+                reset_time: Self::reset_time_from_seconds(limit_info.reset_in_seconds),
+            })
+        } else {
+            Ok(AgentLimit::NotLimited)
+        }
+    }
+
+    async fn check_kiro_limit(&self) -> Result<AgentLimit, Box<dyn std::error::Error>> {
+        let info = crate::kiro::KiroClient::fetch_usage().await?;
+        if info.is_limited() {
+            Ok(AgentLimit::Limited {
+                reset_time: Self::reset_time_from_seconds(info.reset_in_seconds),
+            })
+        } else {
+            Ok(AgentLimit::NotLimited)
         }
     }
 
@@ -590,6 +722,132 @@ mod tests {
         // Then: error mentions the missing key -- no HTTP call should be made
         let err_msg = result.err().ok_or("expected Err")?.to_string();
         assert!(err_msg.contains("openrouter_management_key"));
+        Ok(())
+    }
+
+    fn make_api_key_agent(provider: &str) -> Agent {
+        Agent::new(
+            AgentConfig {
+                command: "myai".to_string(),
+                args: vec![],
+                models: None,
+                arg_maps: HashMap::new(),
+                env: None,
+                provider: Some(crate::config::ProviderConfig::Explicit(
+                    provider.to_string(),
+                )),
+                openrouter_management_key: None,
+                glm_api_key: None,
+                pre_command: vec![],
+            },
+            vec![],
+        )
+    }
+
+    // -- zai --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_zai_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("zai");
+        let result = agent.check_limit().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("Z_AI_API_KEY"),
+            "error should mention Z_AI_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_status_zai_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("zai");
+        let result = agent.fetch_status().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("Z_AI_API_KEY"),
+            "error should mention Z_AI_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    // -- kimi-k2 --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_kimik2_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("kimi-k2");
+        let result = agent.check_limit().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("KIMI_K2_API_KEY"),
+            "error should mention KIMI_K2_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_status_kimik2_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("kimi-k2");
+        let result = agent.fetch_status().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("KIMI_K2_API_KEY"),
+            "error should mention KIMI_K2_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    // -- warp --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_warp_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("warp");
+        let result = agent.check_limit().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("WARP_API_KEY"),
+            "error should mention WARP_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_status_warp_returns_error_when_api_key_is_missing() -> TestResult {
+        let agent = make_api_key_agent("warp");
+        let result = agent.fetch_status().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(
+            err_msg.contains("WARP_API_KEY"),
+            "error should mention WARP_API_KEY, got: {err_msg}"
+        );
+        Ok(())
+    }
+
+    // -- kiro (CLI-based, no API key needed for dispatch, but must not panic) --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_kiro_returns_error_when_command_not_found() -> TestResult {
+        let agent = make_api_key_agent("kiro");
+        let result = agent.check_limit().await;
+        assert!(result.is_err(), "kiro without CLI should return an error");
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fetch_status_kiro_returns_error_when_command_not_found() -> TestResult {
+        let agent = make_api_key_agent("kiro");
+        let result = agent.fetch_status().await;
+        assert!(result.is_err(), "kiro without CLI should return an error");
+        Ok(())
+    }
+
+    // -- unknown provider still errors --
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_limit_unknown_provider_returns_error() -> TestResult {
+        let agent = make_api_key_agent("nonexistent-provider");
+        let result = agent.check_limit().await;
+        let err_msg = result.err().ok_or("expected Err")?.to_string();
+        assert!(err_msg.contains("Unknown provider"), "got: {err_msg}");
         Ok(())
     }
 }
