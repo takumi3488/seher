@@ -1287,9 +1287,9 @@ checksum = "9dbbfed4e59ba9750e15ba154fdfd9329cee16ff3df539c2666b70f58cc32105"
 
 [[package]]
 name = "jsonc-parser"
-version = "0.32.1"
+version = "0.32.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de0ffda8def4eb16ed430641db8056c2509b20e38f2dd327bdb4c83239f88c4"
+checksum = "22e174964e77ea79b784f1e1dfffec4f77f61a453a36efc7c36838c917706777"
 dependencies = [
  "serde",
 ]
