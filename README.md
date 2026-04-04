@@ -106,6 +106,8 @@ You can customize seher's behavior by creating `~/.config/seher/settings.json` o
 | `priority[].provider` | string or null | Provider to match; omitted infers from `command`, `null` matches fallback agents |
 | `priority[].model` | string or null | Model key to match; omitted or `null` matches runs without `--model` |
 | `priority[].priority` | integer | Priority value (`i32`); higher wins, unmatched combinations default to `0` |
+| `priority[].weekdays` | array of strings or null | Weekday ranges to match in `"start-end"` format (0=Sun, 1=Mon, …, 6=Sat, inclusive). e.g. `["1-5"]` for Mon–Fri. Omit to match any day. |
+| `priority[].hours` | array of strings or null | Hour ranges to match in `"start-end"` format, half-open `[start, end)`, 0–48. e.g. `["21-27"]` for 21:00–03:00 overnight. Omit to match any hour. |
 | `agents` | array | List of agents to use (required) |
 | `agents[].command` | string | Executable name (e.g. `"claude"`, `"codex"`, `"opencode"`) |
 | `agents[].args` | array of strings | Additional arguments (optional; defaults to `[]`) |
@@ -210,6 +212,19 @@ The `{model}` placeholder in `args` is resolved based on the value passed to `--
 `arg_maps` rewrites each trailing CLI token independently using exact-match keys. A mapping value can expand one input token into multiple output tokens, while unmapped tokens are passed through unchanged. For example, with the sample configuration, `seher --danger "fix bugs"` adds `--permission-mode bypassPermissions` when Claude is selected.
 
 `priority` matches the combination of `command`, resolved `provider`, and `--model` key. If a rule's `provider` is omitted, it is inferred from `command` using the same logic as agents (`claude` → `claude`, `codex` → `codex`, `copilot` → `copilot`). Setting `provider` to `null` matches fallback agents. When multiple agents are not rate-limited, seher selects the one with the highest `priority`; if priorities are equal, the earlier entry in `agents` wins.
+
+A rule may also carry optional `weekdays` and `hours` schedule constraints. `weekdays` is a list of inclusive `"start-end"` ranges (0=Sun … 6=Sat); `hours` is a list of half-open `"start-end"` ranges in the 0–48 space (values ≥ 24 wrap to the next calendar day, enabling overnight windows such as `"21-27"` for 21:00–03:00). When multiple rules match the same agent at a given moment, the one with the most schedule constraints (`weekdays` + `hours` axes) wins; ties fall back to the first matching rule.
+
+```jsonc
+{
+  "priority": [
+    // Default daytime priority
+    { "command": "claude", "priority": 100 },
+    // Boost codex on weekday nights (21:00–03:00)
+    { "command": "codex", "priority": 200, "weekdays": ["1-5"], "hours": ["21-27"] }
+  ]
+}
+```
 
 The `provider` field controls rate limit tracking. If omitted, the provider is inferred from the command name (`claude` → claude.ai, `codex` → chatgpt.com, `copilot` → github.com). Setting it to `null` disables rate limit checking for that agent. Setting it to a string (e.g. `"codex"`, `"copilot"`, `"openrouter"`, `"glm"`, or `"opencode-go"`) uses that provider's rate limit regardless of the command name.
 
