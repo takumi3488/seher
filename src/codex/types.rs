@@ -58,6 +58,8 @@ pub struct CodexCredits {
     pub balance: String,
     pub approx_local_messages: Vec<i64>,
     pub approx_cloud_messages: Vec<i64>,
+    #[serde(default)]
+    pub overage_limit_reached: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -67,9 +69,10 @@ pub struct CodexUsageResponse {
     pub email: String,
     pub plan_type: String,
     pub rate_limit: CodexRateLimit,
-    pub code_review_rate_limit: CodexRateLimit,
+    pub code_review_rate_limit: Option<CodexRateLimit>,
     pub additional_rate_limits: Option<serde_json::Value>,
     pub credits: CodexCredits,
+    pub spend_control: Option<serde_json::Value>,
     pub promo: Option<serde_json::Value>,
 }
 
@@ -129,10 +132,45 @@ mod tests {
         assert_eq!(usage.rate_limit.next_reset_time(), None);
         let primary_used = usage
             .code_review_rate_limit
-            .primary_window
             .as_ref()
+            .and_then(|cr| cr.primary_window.as_ref())
             .map(|w| w.used_percent);
         assert_eq!(primary_used, Some(0.0));
+        Ok(())
+    }
+
+    #[test]
+    fn parses_null_code_review_rate_limit_and_missing_overage_field()
+    -> Result<(), serde_json::Error> {
+        let json = r#"
+        {
+          "user_id": "user-1",
+          "account_id": "user-1",
+          "email": "user@example.com",
+          "plan_type": "plus",
+          "rate_limit": {
+            "allowed": true,
+            "limit_reached": false,
+            "primary_window": null,
+            "secondary_window": null
+          },
+          "code_review_rate_limit": null,
+          "additional_rate_limits": null,
+          "credits": {
+            "has_credits": false,
+            "unlimited": false,
+            "balance": "0",
+            "approx_local_messages": [0, 0],
+            "approx_cloud_messages": [0, 0]
+          },
+          "spend_control": { "reached": false },
+          "promo": null
+        }"#;
+
+        let usage: CodexUsageResponse = serde_json::from_str(json)?;
+
+        assert!(usage.code_review_rate_limit.is_none());
+        assert!(!usage.credits.overage_limit_reached);
         Ok(())
     }
 
