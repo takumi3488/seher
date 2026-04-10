@@ -134,13 +134,11 @@ impl Agent {
             }
             Some("codex") => {
                 let usage = crate::codex::CodexClient::fetch_usage(&self.cookies).await?;
-                [
-                    ("rate_limit", &usage.rate_limit),
-                    ("code_review_rate_limit", &usage.code_review_rate_limit),
-                ]
-                .into_iter()
-                .flat_map(|(prefix, limit)| codex_usage_entries(prefix, limit))
-                .collect()
+                let mut entries = codex_usage_entries("rate_limit", &usage.rate_limit);
+                if let Some(ref cr) = usage.code_review_rate_limit {
+                    entries.extend(codex_usage_entries("code_review_rate_limit", cr));
+                }
+                entries
             }
             Some("copilot") => {
                 let quota = crate::copilot::CopilotClient::fetch_quota(&self.cookies).await?;

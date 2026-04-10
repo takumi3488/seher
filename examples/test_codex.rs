@@ -37,7 +37,10 @@ async fn main() {
                         );
                         println!(
                             "  code_review limited: {}",
-                            usage.code_review_rate_limit.is_limited()
+                            usage
+                                .code_review_rate_limit
+                                .as_ref()
+                                .is_some_and(seher::CodexRateLimit::is_limited)
                         );
                         return;
                     }
